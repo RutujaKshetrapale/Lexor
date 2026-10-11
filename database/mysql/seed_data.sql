@@ -51,8 +51,8 @@ INSERT INTO rider_profiles (id, user_id, rating, total_rides, preferred_payment_
 VALUES (1, 2, 4.95, 12, 'UPI', 'MG Road, Indiranagar, Bengaluru, Karnataka 560038', 'Prestige Tech Park, Marathahalli, Bengaluru, Karnataka 560103')
 ON DUPLICATE KEY UPDATE rating=VALUES(rating);
 
-INSERT INTO driver_profiles (id, user_id, license_number, license_expiry_date, status, rating, total_trips, acceptance_rate, cancellation_rate, is_verified, background_check_status)
-VALUES (1, 3, 'KA-01-20230009876', '2028-12-31', 'ONLINE', 4.90, 145, 98.50, 1.20, TRUE, 'PASSED')
+INSERT INTO driver_profiles (id, user_id, license_number, license_expiry_date, license_issue_date, license_issuing_authority, license_issuing_state, license_issuing_country, license_class, date_of_birth, residential_address, city, state, postal_code, country, preferred_language, status, rating, total_trips, acceptance_rate, cancellation_rate, is_verified, background_check_status, onboarding_status)
+VALUES (1, 3, 'KA-01-20230009876', '2028-12-31', '2023-01-15', 'Karnataka Transport Department', 'Karnataka', 'India', 'LMV', '1990-05-15', 'Indiranagar 100ft Road', 'Bengaluru', 'Karnataka', '560038', 'India', 'English', 'ONLINE', 4.90, 145, 98.50, 1.20, TRUE, 'PASSED', 'VERIFIED')
 ON DUPLICATE KEY UPDATE license_number=VALUES(license_number);
 
 -- -----------------------------------------------------------------------------
@@ -161,5 +161,23 @@ ON DUPLICATE KEY UPDATE status=VALUES(status);
 INSERT INTO admin_actions (id, admin_user_id, action_type, target_type, target_id, details, ip_address)
 VALUES (1, 1, 'VERIFY_DRIVER_BACKGROUND', 'DRIVER', 1, '{"status": "PASSED", "verified_by": "Rutuja Admin", "license": "KA-01-20230009876"}', '192.168.1.50')
 ON DUPLICATE KEY UPDATE action_type=VALUES(action_type);
+
+-- -----------------------------------------------------------------------------
+-- 11. DRIVER ONBOARDING & DOCUMENT VERIFICATION
+-- -----------------------------------------------------------------------------
+INSERT INTO driver_documents (id, driver_id, document_type, document_number, file_name, file_path, content_type, file_size, issue_date, expiry_date, issuing_authority, verification_status, reviewed_by_admin_id, reviewed_at, version, is_current)
+VALUES
+(1, 1, 'DRIVING_LICENSE', 'KA-01-20230009876', 'dl_vikram_singh.pdf', 'uploads/documents/dl_vikram_singh.pdf', 'application/pdf', 1048576, '2023-01-15', '2028-12-31', 'Karnataka Transport Department', 'VERIFIED', 1, '2026-01-02 10:30:00', 1, TRUE),
+(2, 1, 'GOVERNMENT_ID', 'AADHAAR-XXXX-XXXX-9876', 'aadhaar_vikram.pdf', 'uploads/documents/aadhaar_vikram.pdf', 'application/pdf', 786432, '2018-06-10', NULL, 'UIDAI', 'VERIFIED', 1, '2026-01-02 10:35:00', 1, TRUE),
+(3, 1, 'ADDRESS_PROOF', 'ELEC-BILL-2026-01', 'address_proof_vikram.pdf', 'uploads/documents/address_proof_vikram.pdf', 'application/pdf', 524288, '2026-01-01', NULL, 'BESCOM', 'VERIFIED', 1, '2026-01-02 10:40:00', 1, TRUE)
+ON DUPLICATE KEY UPDATE verification_status=VALUES(verification_status);
+
+INSERT INTO driver_verification_history (id, driver_id, document_id, action_type, previous_status, new_status, reviewed_by_admin_id, reason, created_at)
+VALUES
+(1, 1, 1, 'DOCUMENT_REVIEW', 'PENDING_REVIEW', 'VERIFIED', 1, 'Driving license verified against state RTO database', '2026-01-02 10:30:00'),
+(2, 1, 2, 'DOCUMENT_REVIEW', 'PENDING_REVIEW', 'VERIFIED', 1, 'Government ID proof verified', '2026-01-02 10:35:00'),
+(3, 1, 3, 'DOCUMENT_REVIEW', 'PENDING_REVIEW', 'VERIFIED', 1, 'Address proof verified', '2026-01-02 10:40:00'),
+(4, 1, NULL, 'DRIVER_VERIFICATION', 'UNDER_REVIEW', 'VERIFIED', 1, 'Driver profile and all mandatory documents approved', '2026-01-02 10:45:00')
+ON DUPLICATE KEY UPDATE new_status=VALUES(new_status);
 
 SET FOREIGN_KEY_CHECKS = 1;

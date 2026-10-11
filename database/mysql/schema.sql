@@ -1,6 +1,6 @@
 -- =============================================================================
 -- LEXOR — AI-Powered Smart Mobility Platform
--- Primary Database Reference Schema (24 Tables)
+-- Primary Database Reference Schema (26 Tables)
 -- Database Name: lexor_db
 -- Target Engine: MySQL 8.0+ (InnoDB Engine)
 -- Character Set: utf8mb4 / utf8mb4_unicode_ci
@@ -56,8 +56,20 @@ CREATE TABLE IF NOT EXISTS rider_profiles (
 CREATE TABLE IF NOT EXISTS driver_profiles (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE,
-    license_number VARCHAR(50) NOT NULL UNIQUE,
-    license_expiry_date DATE NOT NULL,
+    license_number VARCHAR(50) DEFAULT NULL UNIQUE,
+    license_expiry_date DATE DEFAULT NULL,
+    license_issue_date DATE DEFAULT NULL,
+    license_issuing_authority VARCHAR(100) DEFAULT NULL,
+    license_issuing_state VARCHAR(100) DEFAULT NULL,
+    license_issuing_country VARCHAR(100) DEFAULT 'India',
+    license_class VARCHAR(50) DEFAULT 'LMV',
+    date_of_birth DATE DEFAULT NULL,
+    residential_address VARCHAR(255) DEFAULT NULL,
+    city VARCHAR(100) DEFAULT NULL,
+    state VARCHAR(100) DEFAULT NULL,
+    postal_code VARCHAR(20) DEFAULT NULL,
+    country VARCHAR(100) DEFAULT 'India',
+    preferred_language VARCHAR(50) DEFAULT 'English',
     status ENUM('OFFLINE', 'ONLINE', 'IN_TRIP', 'SUSPENDED') NOT NULL DEFAULT 'OFFLINE',
     rating DECIMAL(3, 2) NOT NULL DEFAULT 5.00,
     total_trips INT UNSIGNED NOT NULL DEFAULT 0,
@@ -66,11 +78,14 @@ CREATE TABLE IF NOT EXISTS driver_profiles (
     is_verified BOOLEAN NOT NULL DEFAULT FALSE,
     verified_at TIMESTAMP NULL DEFAULT NULL,
     background_check_status ENUM('PENDING', 'PASSED', 'FAILED') NOT NULL DEFAULT 'PENDING',
+    onboarding_status ENUM('INCOMPLETE', 'PENDING_REVIEW', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED', 'SUSPENDED') NOT NULL DEFAULT 'INCOMPLETE',
+    rejection_reason VARCHAR(500) DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_driver_profiles_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     INDEX idx_driver_status (status),
-    INDEX idx_driver_rating (rating)
+    INDEX idx_driver_rating (rating),
+    INDEX idx_driver_onboarding (onboarding_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table 4: admin_profiles
@@ -482,6 +497,60 @@ CREATE TABLE IF NOT EXISTS admin_actions (
     CONSTRAINT fk_admin_actions_user FOREIGN KEY (admin_user_id) REFERENCES users (id),
     INDEX idx_admin_actions_user (admin_user_id),
     INDEX idx_admin_actions_type (action_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- 8. DRIVER ONBOARDING & DOCUMENT VERIFICATION MODULE
+-- -----------------------------------------------------------------------------
+
+-- Table 25: driver_documents
+CREATE TABLE IF NOT EXISTS driver_documents (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    driver_id BIGINT NOT NULL,
+    document_type ENUM('DRIVING_LICENSE', 'GOVERNMENT_ID', 'ADDRESS_PROOF', 'PROFILE_PHOTO', 'BACKGROUND_CHECK', 'OTHER') NOT NULL,
+    document_number VARCHAR(100) DEFAULT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    content_type VARCHAR(100) NOT NULL,
+    file_size BIGINT NOT NULL,
+    issue_date DATE DEFAULT NULL,
+    expiry_date DATE DEFAULT NULL,
+    issuing_authority VARCHAR(100) DEFAULT NULL,
+    verification_status ENUM('PENDING_REVIEW', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED', 'EXPIRED', 'RESUBMISSION_REQUIRED') NOT NULL DEFAULT 'PENDING_REVIEW',
+    rejection_reason VARCHAR(500) DEFAULT NULL,
+    review_notes VARCHAR(500) DEFAULT NULL,
+    reviewed_by_admin_id BIGINT DEFAULT NULL,
+    reviewed_at TIMESTAMP NULL DEFAULT NULL,
+    version INT UNSIGNED NOT NULL DEFAULT 1,
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_driver_documents_driver FOREIGN KEY (driver_id) REFERENCES driver_profiles (id) ON DELETE CASCADE,
+    CONSTRAINT fk_driver_documents_admin FOREIGN KEY (reviewed_by_admin_id) REFERENCES users (id) ON DELETE SET NULL,
+    INDEX idx_driver_docs_driver (driver_id),
+    INDEX idx_driver_docs_status (verification_status),
+    INDEX idx_driver_docs_type (document_type),
+    INDEX idx_driver_docs_current (driver_id, is_current)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 26: driver_verification_history
+CREATE TABLE IF NOT EXISTS driver_verification_history (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    driver_id BIGINT NOT NULL,
+    document_id BIGINT DEFAULT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    previous_status VARCHAR(50) NOT NULL,
+    new_status VARCHAR(50) NOT NULL,
+    reviewed_by_admin_id BIGINT NOT NULL,
+    reason VARCHAR(500) DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_driver_verif_driver FOREIGN KEY (driver_id) REFERENCES driver_profiles (id) ON DELETE CASCADE,
+    CONSTRAINT fk_driver_verif_doc FOREIGN KEY (document_id) REFERENCES driver_documents (id) ON DELETE SET NULL,
+    CONSTRAINT fk_driver_verif_admin FOREIGN KEY (reviewed_by_admin_id) REFERENCES users (id),
+    INDEX idx_dvh_driver (driver_id),
+    INDEX idx_dvh_document (document_id),
+    INDEX idx_dvh_admin (reviewed_by_admin_id),
+    INDEX idx_dvh_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
