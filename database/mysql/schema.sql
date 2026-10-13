@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS admin_profiles (
 -- Table 5: vehicles
 CREATE TABLE IF NOT EXISTS vehicles (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) NOT NULL UNIQUE,
     driver_id BIGINT NOT NULL,
     make VARCHAR(50) NOT NULL,
     model VARCHAR(50) NOT NULL,
@@ -115,14 +116,23 @@ CREATE TABLE IF NOT EXISTS vehicles (
     vin VARCHAR(17) DEFAULT NULL UNIQUE,
     ride_type_category VARCHAR(30) NOT NULL,
     seat_capacity TINYINT UNSIGNED NOT NULL DEFAULT 4,
+    fuel_type ENUM('PETROL', 'DIESEL', 'ELECTRIC', 'HYBRID', 'CNG', 'OTHER') NOT NULL DEFAULT 'PETROL',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     is_inspected BOOLEAN NOT NULL DEFAULT TRUE,
     inspection_expires_at DATE DEFAULT NULL,
+    verification_status ENUM('PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'SUSPENDED') NOT NULL DEFAULT 'PENDING_VERIFICATION',
+    rejection_reason VARCHAR(500) DEFAULT NULL,
+    reviewed_by_admin_id BIGINT DEFAULT NULL,
+    verified_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_vehicles_driver FOREIGN KEY (driver_id) REFERENCES driver_profiles (id) ON DELETE CASCADE,
+    CONSTRAINT fk_vehicles_admin FOREIGN KEY (reviewed_by_admin_id) REFERENCES users (id) ON DELETE SET NULL,
+    INDEX idx_vehicles_uuid (uuid),
     INDEX idx_vehicles_driver (driver_id),
-    INDEX idx_vehicles_license_plate (license_plate)
+    INDEX idx_vehicles_license_plate (license_plate),
+    INDEX idx_vehicles_status (verification_status),
+    INDEX idx_vehicles_fuel (fuel_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table 6: ride_types
@@ -553,4 +563,80 @@ CREATE TABLE IF NOT EXISTS driver_verification_history (
     INDEX idx_dvh_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- -----------------------------------------------------------------------------
+-- 9. VEHICLE VERIFICATION & FLEET MANAGEMENT MODULE
+-- -----------------------------------------------------------------------------
+
+-- Table 27: vehicle_documents
+CREATE TABLE IF NOT EXISTS vehicle_documents (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_id BIGINT NOT NULL,
+    document_type ENUM('REGISTRATION_CERTIFICATE', 'VEHICLE_INSURANCE', 'POLLUTION_UNDER_CONTROL', 'VEHICLE_PERMIT', 'FITNESS_CERTIFICATE', 'OTHER') NOT NULL,
+    document_number VARCHAR(100) DEFAULT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    content_type VARCHAR(100) NOT NULL,
+    file_size BIGINT NOT NULL,
+    issue_date DATE DEFAULT NULL,
+    expiry_date DATE DEFAULT NULL,
+    issuing_authority VARCHAR(100) DEFAULT NULL,
+    verification_status ENUM('PENDING_REVIEW', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED', 'EXPIRED', 'RESUBMISSION_REQUIRED') NOT NULL DEFAULT 'PENDING_REVIEW',
+    rejection_reason VARCHAR(500) DEFAULT NULL,
+    review_notes VARCHAR(500) DEFAULT NULL,
+    reviewed_by_admin_id BIGINT DEFAULT NULL,
+    reviewed_at TIMESTAMP NULL DEFAULT NULL,
+    version INT UNSIGNED NOT NULL DEFAULT 1,
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_vehicle_documents_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (id) ON DELETE CASCADE,
+    CONSTRAINT fk_vehicle_documents_admin FOREIGN KEY (reviewed_by_admin_id) REFERENCES users (id) ON DELETE SET NULL,
+    INDEX idx_vehicle_docs_vehicle (vehicle_id),
+    INDEX idx_vehicle_docs_status (verification_status),
+    INDEX idx_vehicle_docs_type (document_type),
+    INDEX idx_vehicle_docs_current (vehicle_id, is_current)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 28: vehicle_verification_history
+CREATE TABLE IF NOT EXISTS vehicle_verification_history (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_id BIGINT NOT NULL,
+    document_id BIGINT DEFAULT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    previous_status VARCHAR(50) NOT NULL,
+    new_status VARCHAR(50) NOT NULL,
+    reviewed_by_admin_id BIGINT NOT NULL,
+    reason VARCHAR(500) DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_vehicle_verif_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (id) ON DELETE CASCADE,
+    CONSTRAINT fk_vehicle_verif_doc FOREIGN KEY (document_id) REFERENCES vehicle_documents (id) ON DELETE SET NULL,
+    CONSTRAINT fk_vehicle_verif_admin FOREIGN KEY (reviewed_by_admin_id) REFERENCES users (id),
+    INDEX idx_vvh_vehicle (vehicle_id),
+    INDEX idx_vvh_document (document_id),
+    INDEX idx_vvh_admin (reviewed_by_admin_id),
+    INDEX idx_vvh_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table 29: driver_vehicle_assignments
+CREATE TABLE IF NOT EXISTS driver_vehicle_assignments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_id BIGINT NOT NULL,
+    driver_id BIGINT NOT NULL,
+    assigned_by_admin_id BIGINT DEFAULT NULL,
+    status ENUM('ACTIVE', 'INACTIVE', 'TERMINATED') NOT NULL DEFAULT 'ACTIVE',
+    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    unassigned_at TIMESTAMP NULL DEFAULT NULL,
+    reason VARCHAR(500) DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_dva_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (id) ON DELETE CASCADE,
+    CONSTRAINT fk_dva_driver FOREIGN KEY (driver_id) REFERENCES driver_profiles (id) ON DELETE CASCADE,
+    CONSTRAINT fk_dva_admin FOREIGN KEY (assigned_by_admin_id) REFERENCES users (id) ON DELETE SET NULL,
+    INDEX idx_dva_vehicle (vehicle_id),
+    INDEX idx_dva_driver (driver_id),
+    INDEX idx_dva_status (status),
+    INDEX idx_dva_current (vehicle_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
+

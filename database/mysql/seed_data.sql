@@ -58,8 +58,8 @@ ON DUPLICATE KEY UPDATE license_number=VALUES(license_number);
 -- -----------------------------------------------------------------------------
 -- 5. VEHICLE
 -- -----------------------------------------------------------------------------
-INSERT INTO vehicles (id, driver_id, make, model, year, color, license_plate, vin, ride_type_category, seat_capacity, is_active, is_inspected)
-VALUES (1, 1, 'Toyota', 'Urban Cruiser Hyryder', 2023, 'Midnight Black', 'KA-01-EQ-4829', 'MA31234567890ABCD', 'SEDAN', 4, TRUE, TRUE)
+INSERT INTO vehicles (id, uuid, driver_id, make, model, year, color, license_plate, vin, ride_type_category, seat_capacity, fuel_type, is_active, is_inspected, verification_status, reviewed_by_admin_id, verified_at)
+VALUES (1, 'e7b1a2c3-4d5e-6f7a-8b9c-0d1e2f3a4b5c', 1, 'Toyota', 'Urban Cruiser Hyryder', 2023, 'Midnight Black', 'KA-01-EQ-4829', 'MA31234567890ABCD', 'SEDAN', 4, 'HYBRID', TRUE, TRUE, 'VERIFIED', 1, '2026-01-02 10:45:00')
 ON DUPLICATE KEY UPDATE license_plate=VALUES(license_plate);
 
 -- -----------------------------------------------------------------------------
@@ -180,4 +180,28 @@ VALUES
 (4, 1, NULL, 'DRIVER_VERIFICATION', 'UNDER_REVIEW', 'VERIFIED', 1, 'Driver profile and all mandatory documents approved', '2026-01-02 10:45:00')
 ON DUPLICATE KEY UPDATE new_status=VALUES(new_status);
 
+-- -----------------------------------------------------------------------------
+-- 12. VEHICLE VERIFICATION, DOCUMENTS & FLEET ASSIGNMENT
+-- -----------------------------------------------------------------------------
+INSERT INTO vehicle_documents (id, vehicle_id, document_type, document_number, file_name, file_path, content_type, file_size, issue_date, expiry_date, issuing_authority, verification_status, reviewed_by_admin_id, reviewed_at, version, is_current)
+VALUES
+(1, 1, 'REGISTRATION_CERTIFICATE', 'RC-KA-01-EQ-4829', 'rc_hyryder.pdf', 'uploads/vehicle-documents/rc_hyryder.pdf', 'application/pdf', 1048576, '2023-03-10', '2038-03-09', 'RTO Indiranagar Bangalore', 'VERIFIED', 1, '2026-01-02 10:30:00', 1, TRUE),
+(2, 1, 'VEHICLE_INSURANCE', 'POL-HDFC-98765432', 'insurance_hyryder.pdf', 'uploads/vehicle-documents/insurance_hyryder.pdf', 'application/pdf', 838860, '2025-03-01', '2026-02-28', 'HDFC ERGO General Insurance', 'VERIFIED', 1, '2026-01-02 10:35:00', 1, TRUE),
+(3, 1, 'POLLUTION_UNDER_CONTROL', 'PUC-KA01-2025-1102', 'puc_hyryder.pdf', 'uploads/vehicle-documents/puc_hyryder.pdf', 'application/pdf', 419430, '2025-10-01', '2026-04-01', 'Karnataka Transport Emission Centre', 'VERIFIED', 1, '2026-01-02 10:40:00', 1, TRUE)
+ON DUPLICATE KEY UPDATE verification_status=VALUES(verification_status);
+
+INSERT INTO vehicle_verification_history (id, vehicle_id, document_id, action_type, previous_status, new_status, reviewed_by_admin_id, reason, created_at)
+VALUES
+(1, 1, 1, 'DOCUMENT_REVIEW', 'PENDING_REVIEW', 'VERIFIED', 1, 'Registration Certificate validated against Vahan portal', '2026-01-02 10:30:00'),
+(2, 1, 2, 'DOCUMENT_REVIEW', 'PENDING_REVIEW', 'VERIFIED', 1, 'Comprehensive motor insurance active and verified', '2026-01-02 10:35:00'),
+(3, 1, 3, 'DOCUMENT_REVIEW', 'PENDING_REVIEW', 'VERIFIED', 1, 'Emission certificate valid', '2026-01-02 10:40:00'),
+(4, 1, NULL, 'VEHICLE_VERIFICATION', 'PENDING_VERIFICATION', 'VERIFIED', 1, 'All mandatory vehicle compliance documents verified and approved', '2026-01-02 10:45:00')
+ON DUPLICATE KEY UPDATE new_status=VALUES(new_status);
+
+INSERT INTO driver_vehicle_assignments (id, vehicle_id, driver_id, assigned_by_admin_id, status, assigned_at, reason)
+VALUES
+(1, 1, 1, 1, 'ACTIVE', '2026-01-02 11:00:00', 'Initial vehicle registration assignment to owning driver Vikram Singh')
+ON DUPLICATE KEY UPDATE status=VALUES(status);
+
 SET FOREIGN_KEY_CHECKS = 1;
+
