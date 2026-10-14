@@ -13,12 +13,12 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- -----------------------------------------------------------------------------
 -- 1. RIDE TYPES (INR Pricing Model)
 -- -----------------------------------------------------------------------------
-INSERT INTO ride_types (id, name, code, description, base_fare, per_km_rate, per_minute_rate, minimum_fare, cancellation_fee, capacity, icon_url, is_active)
+INSERT INTO ride_types (id, uuid, name, code, description, base_fare, per_km_rate, per_minute_rate, minimum_fare, cancellation_fee, capacity, icon_url, is_active)
 VALUES 
-(1, 'LEXOR Go', 'GO', 'Affordable everyday hatchback rides for up to 4 passengers', 50.00, 15.00, 2.50, 80.00, 30.00, 4, 'https://cdn.lexor.mobility/icons/go.png', TRUE),
-(2, 'LEXOR XL', 'XL', 'Spacious SUV rides for groups up to 6 passengers', 90.00, 22.00, 3.50, 140.00, 50.00, 6, 'https://cdn.lexor.mobility/icons/xl.png', TRUE),
-(3, 'LEXOR Premier', 'PREMIER', 'High-end luxury sedans with top-rated drivers', 120.00, 28.00, 4.50, 180.00, 70.00, 4, 'https://cdn.lexor.mobility/icons/premier.png', TRUE),
-(4, 'LEXOR Green', 'GREEN', 'Eco-friendly electric and hybrid vehicle rides', 60.00, 16.00, 2.80, 90.00, 35.00, 4, 'https://cdn.lexor.mobility/icons/green.png', TRUE)
+(1, 'a1b2c3d4-0001-4000-8000-000000000001', 'LEXOR Go', 'GO', 'Affordable everyday hatchback rides for up to 4 passengers', 50.00, 15.00, 2.50, 80.00, 30.00, 4, 'https://cdn.lexor.mobility/icons/go.png', TRUE),
+(2, 'a1b2c3d4-0002-4000-8000-000000000002', 'LEXOR XL', 'XL', 'Spacious SUV rides for groups up to 6 passengers', 90.00, 22.00, 3.50, 140.00, 50.00, 6, 'https://cdn.lexor.mobility/icons/xl.png', TRUE),
+(3, 'a1b2c3d4-0003-4000-8000-000000000003', 'LEXOR Premier', 'PREMIER', 'High-end luxury sedans with top-rated drivers', 120.00, 28.00, 4.50, 180.00, 70.00, 4, 'https://cdn.lexor.mobility/icons/premier.png', TRUE),
+(4, 'a1b2c3d4-0004-4000-8000-000000000004', 'LEXOR Green', 'GREEN', 'Eco-friendly electric and hybrid vehicle rides', 60.00, 16.00, 2.80, 90.00, 35.00, 4, 'https://cdn.lexor.mobility/icons/green.png', TRUE)
 ON DUPLICATE KEY UPDATE name=VALUES(name);
 
 -- -----------------------------------------------------------------------------

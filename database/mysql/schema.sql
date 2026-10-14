@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
 -- Table 6: ride_types
 CREATE TABLE IF NOT EXISTS ride_types (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) NOT NULL UNIQUE,
     name VARCHAR(50) NOT NULL UNIQUE,
     code VARCHAR(30) NOT NULL UNIQUE,
     description TEXT DEFAULT NULL,
@@ -150,7 +151,10 @@ CREATE TABLE IF NOT EXISTS ride_types (
     icon_url VARCHAR(500) DEFAULT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_ride_types_uuid (uuid),
+    INDEX idx_ride_types_code (code),
+    INDEX idx_ride_types_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
