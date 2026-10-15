@@ -6,6 +6,11 @@
 .env
 .env.*
 !.env.example
+appsettings.Local.json
+appsettings.*.local.json
+appsettings.Development.local.json
+application-local.yml
+application-local.properties
 
 # Java / Spring Boot
 target/

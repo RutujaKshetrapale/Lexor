@@ -99,9 +99,9 @@ Copy `.env.example` to `.env` or set environment variables in your environment:
 | `DB_PORT` | `3306` | MySQL port |
 | `DB_NAME` | `lexor_db` | Shared MySQL database name |
 | `DB_USERNAME` | `root` | Database username |
-| `DB_PASSWORD` | `21011017` | Database password |
-| `JWT_SECRET` | `404E6352...` | 256-bit secret key for HMAC-SHA |
-| `LEXOR_JWT_SECRET` | `404E6352...` | Fallback secret matching LEXOR conventions |
+| `DB_PASSWORD` | *(None / Required)* | Database password (set via env var) |
+| `JWT_SECRET` | *(Required)* | 256-bit secret key for HMAC-SHA |
+| `LEXOR_JWT_SECRET` | *(Optional fallback)* | Alternative secret matching LEXOR conventions |
 | `JWT_EXPIRATION_MS`| `86400000` | Token expiration (24 hours in ms) |
 | `STORAGE_LOCATION` | `uploads/vehicle-documents` | Directory for uploaded documents |
 | `ALLOWED_EXTENSIONS`| `pdf,jpg,jpeg,png,webp` | Whitelisted file extensions |

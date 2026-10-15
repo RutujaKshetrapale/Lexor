@@ -306,6 +306,17 @@ public class VehicleAdminServiceImpl implements VehicleAdminService {
                 throw new InvalidStatusTransitionException("Only a suspended vehicle can be reinstated");
             }
 
+            // Verify mandatory compliance documents before reinstatement
+            List<VehicleDocument> currentDocs = documentRepository.findByVehicleIdAndIsCurrentTrue(vehicle.getId());
+            boolean allVerified = policyService.hasAllRequiredDocumentsVerified(currentDocs);
+            if (!allVerified) {
+                List<VehicleDocumentType> missing = policyService.getMissingDocuments(currentDocs);
+                throw new InvalidStatusTransitionException(
+                        "Cannot reinstate vehicle. Mandatory compliance documents are not fully verified. Missing or unverified: " +
+                                (missing.isEmpty() ? "one or more documents still pending review" : missing)
+                );
+            }
+
             vehicle.setVerificationStatus(VehicleVerificationStatus.VERIFIED);
             vehicle.setActive(true);
             vehicle.setRejectionReason(null);

@@ -90,7 +90,7 @@ Copy `.env.example` to configure:
 | `DB_PORT` | `3306` | MySQL database port |
 | `DB_NAME` | `lexor_db` | MySQL database name |
 | `DB_USERNAME` | `root` | Database username |
-| `DB_PASSWORD` | `21011017` | Database password |
+| `DB_PASSWORD` | *(None / Required)* | Database password (set via env var) |
 | `ConnectionStrings__DefaultConnection` | *(constructed)* | Custom MySQL connection string |
 | `LEXOR_JWT_SECRET` | *(256-bit hex)* | HMAC-SHA secret key shared with Auth Service |
 | `JWT_ISSUER` | `LEXOR` | Token issuer |

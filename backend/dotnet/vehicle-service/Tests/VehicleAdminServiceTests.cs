@@ -278,6 +278,44 @@ public class VehicleAdminServiceTests
         vehicle.IsActive = false;
         db.SaveChanges();
 
+        // Setup verified compliance documents
+        db.VehicleDocuments.AddRange(
+            new VehicleDocument
+            {
+                VehicleId = vehicle.Id,
+                DocumentType = VehicleDocumentType.REGISTRATION_CERTIFICATE,
+                FileName = "rc.pdf",
+                FilePath = "uploads/rc.pdf",
+                ContentType = "application/pdf",
+                FileSize = 1000,
+                VerificationStatus = DocumentVerificationStatus.VERIFIED,
+                IsCurrent = true
+            },
+            new VehicleDocument
+            {
+                VehicleId = vehicle.Id,
+                DocumentType = VehicleDocumentType.VEHICLE_INSURANCE,
+                FileName = "insurance.pdf",
+                FilePath = "uploads/insurance.pdf",
+                ContentType = "application/pdf",
+                FileSize = 1000,
+                VerificationStatus = DocumentVerificationStatus.VERIFIED,
+                IsCurrent = true
+            },
+            new VehicleDocument
+            {
+                VehicleId = vehicle.Id,
+                DocumentType = VehicleDocumentType.POLLUTION_UNDER_CONTROL,
+                FileName = "puc.pdf",
+                FilePath = "uploads/puc.pdf",
+                ContentType = "application/pdf",
+                FileSize = 1000,
+                VerificationStatus = DocumentVerificationStatus.VERIFIED,
+                IsCurrent = true
+            }
+        );
+        db.SaveChanges();
+
         var reinstateReq = new SuspendVehicleRequest
         {
             Action = "REINSTATE",
@@ -288,6 +326,25 @@ public class VehicleAdminServiceTests
 
         Assert.Equal(VehicleVerificationStatus.VERIFIED, response.VerificationStatus);
         Assert.True(response.IsActive);
+    }
+
+    [Fact]
+    public async Task ReinstateVehicle_WithoutMandatoryDocuments_ThrowsInvalidStatusTransitionException()
+    {
+        var (db, service, vehicle, driver, adminPrincipal) = CreateContextAndService();
+
+        vehicle.VerificationStatus = VehicleVerificationStatus.SUSPENDED;
+        vehicle.IsActive = false;
+        db.SaveChanges();
+
+        var reinstateReq = new SuspendVehicleRequest
+        {
+            Action = "REINSTATE",
+            Reason = "Re-inspected without valid documents"
+        };
+
+        await Assert.ThrowsAsync<InvalidStatusTransitionException>(() =>
+            service.SuspendOrReinstateVehicleAsync(adminPrincipal, vehicle.Uuid, reinstateReq));
     }
 
     [Fact]

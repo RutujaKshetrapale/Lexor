@@ -11,18 +11,22 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel to listen on port 8082
+// Determine port from environment or fallback to 8082
+var port = Environment.GetEnvironmentVariable("PORT");
+var listenPort = int.TryParse(port, out var parsedPort) ? parsedPort : 8082;
+
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenLocalhost(8082);
+    options.ListenLocalhost(listenPort);
 });
 
 // Add Configuration Options
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 
 // Configure Database Connection (MySQL 8 with EF Core)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? "Server=localhost;Port=3306;Database=lexor_db;Uid=root;Pwd=21011017;AllowPublicKeyRetrieval=True;SSLMode=None;";
+var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection") 
+    ?? "Server=localhost;Port=3306;Database=lexor_db;Uid=root;Pwd=;AllowPublicKeyRetrieval=True;SSLMode=None;";
 
 builder.Services.AddDbContext<LexorDbContext>(options =>
 {
@@ -44,8 +48,27 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService.Services.AuthService>();
 
 // Configure JWT Bearer Authentication
-var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>() ?? new JwtSettings();
-var key = Encoding.UTF8.GetBytes(jwtSettings.Secret);
+var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? Environment.GetEnvironmentVariable("LEXOR_JWT_SECRET")
+    ?? builder.Configuration.GetSection($"{JwtSettings.SectionName}:Secret").Value;
+
+if (string.IsNullOrWhiteSpace(jwtSecret))
+{
+    throw new InvalidOperationException("JWT Secret is not configured. Set the JWT_SECRET or LEXOR_JWT_SECRET environment variable.");
+}
+
+builder.Services.PostConfigure<JwtSettings>(settings =>
+{
+    if (string.IsNullOrWhiteSpace(settings.Secret))
+    {
+        settings.Secret = jwtSecret;
+    }
+});
+
+var jwtIssuer = builder.Configuration.GetSection($"{JwtSettings.SectionName}:Issuer").Value ?? "LEXOR";
+var jwtAudience = builder.Configuration.GetSection($"{JwtSettings.SectionName}:Audience").Value ?? "LEXOR";
+
+var key = Encoding.UTF8.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -60,10 +83,10 @@ builder.Services.AddAuthentication(options =>
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = !string.IsNullOrEmpty(jwtSettings.Issuer),
-        ValidIssuer = jwtSettings.Issuer,
-        ValidateAudience = !string.IsNullOrEmpty(jwtSettings.Audience),
-        ValidAudience = jwtSettings.Audience,
+        ValidateIssuer = !string.IsNullOrEmpty(jwtIssuer),
+        ValidIssuer = jwtIssuer,
+        ValidateAudience = !string.IsNullOrEmpty(jwtAudience),
+        ValidAudience = jwtAudience,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(1)
     };

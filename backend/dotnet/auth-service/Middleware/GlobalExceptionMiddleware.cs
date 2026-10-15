@@ -40,7 +40,7 @@ public class GlobalExceptionMiddleware
             ResourceNotFoundException => (HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", exception.Message),
             ForbiddenException => (HttpStatusCode.Forbidden, "FORBIDDEN", exception.Message),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Full authentication is required to access this resource"),
-            _ => (HttpStatusCode.InternalServerError, "INTERNAL_SERVER_ERROR", "An unexpected error occurred: " + exception.Message)
+            _ => (HttpStatusCode.InternalServerError, "INTERNAL_SERVER_ERROR", "An unexpected internal server error occurred")
         };
 
         context.Response.StatusCode = (int)statusCode;

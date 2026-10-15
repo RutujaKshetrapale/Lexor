@@ -46,6 +46,8 @@ public class JwtTokenProvider {
                 userPrincipal.getAuthorities().iterator().next().getAuthority();
 
         return Jwts.builder()
+                .issuer("LEXOR")
+                .audience().add("LEXOR").and()
                 .subject(userPrincipal.getUuid())
                 .claim("userId", userPrincipal.getId())
                 .claim("email", userPrincipal.getEmail())

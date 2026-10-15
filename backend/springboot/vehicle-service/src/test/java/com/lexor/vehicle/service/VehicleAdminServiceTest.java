@@ -275,6 +275,27 @@ class VehicleAdminServiceTest {
         assertEquals(VehicleVerificationStatus.SUSPENDED, response.getVerificationStatus());
         assertFalse(response.isActive());
 
+        // Setup mandatory verified compliance documents so vehicle is eligible for reinstatement
+        for (VehicleDocumentType type : List.of(
+                VehicleDocumentType.REGISTRATION_CERTIFICATE,
+                VehicleDocumentType.VEHICLE_INSURANCE,
+                VehicleDocumentType.POLLUTION_UNDER_CONTROL
+        )) {
+            VehicleDocument doc = VehicleDocument.builder()
+                    .vehicle(vehicle)
+                    .documentType(type)
+                    .documentNumber("DOC-REINSTATE-" + type.name())
+                    .fileName("doc.pdf")
+                    .filePath("target/test-uploads/doc.pdf")
+                    .contentType("application/pdf")
+                    .fileSize(1024L)
+                    .verificationStatus(DocumentVerificationStatus.VERIFIED)
+                    .version(1)
+                    .isCurrent(true)
+                    .build();
+            documentRepository.save(doc);
+        }
+
         // Reinstating
         SuspendVehicleRequest reinstateReq = SuspendVehicleRequest.builder()
                 .action("REINSTATE")
@@ -284,6 +305,22 @@ class VehicleAdminServiceTest {
         VehicleResponse reinstated = adminService.suspendOrReinstateVehicle(adminPrincipal, vehicle.getUuid(), reinstateReq);
         assertEquals(VehicleVerificationStatus.VERIFIED, reinstated.getVerificationStatus());
         assertTrue(reinstated.isActive());
+    }
+
+    @Test
+    @DisplayName("Reinstate vehicle fails when mandatory documents are not verified")
+    void testReinstateVehicleFailsWithoutMandatoryDocuments() {
+        vehicle.setVerificationStatus(VehicleVerificationStatus.SUSPENDED);
+        vehicle.setActive(false);
+        vehicle = vehicleRepository.save(vehicle);
+
+        SuspendVehicleRequest reinstateReq = SuspendVehicleRequest.builder()
+                .action("REINSTATE")
+                .reason("Attempting reinstatement without valid documents")
+                .build();
+
+        assertThrows(InvalidStatusTransitionException.class, () ->
+                adminService.suspendOrReinstateVehicle(adminPrincipal, vehicle.getUuid(), reinstateReq));
     }
 
     @Test

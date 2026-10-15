@@ -14,7 +14,7 @@ Inspired by modern ride-hailing platforms, LEXOR is designed as an **original, s
 
 The goal of LEXOR is to build a complete smart mobility ecosystem capable of handling:
 
-* Customer ride booking
+* Rider ride booking
 * Driver management
 * Vehicle management
 * Intelligent driver matching
@@ -39,7 +39,7 @@ The platform is designed with **microservices, event-driven architecture, real-t
 ```text
                            ┌───────────────────────┐
                            │      LEXOR USER       │
-                           │ Customer / Driver     │
+                           │ Rider / Driver        │
                            │ Admin                 │
                            └───────────┬───────────┘
                                        │
@@ -145,9 +145,9 @@ LEXOR/
 
 # 👥 Platform Roles
 
-## 👤 Customer
+## 👤 Rider
 
-Customers can:
+Riders can:
 
 * Register and authenticate
 * Manage their profile
@@ -189,7 +189,7 @@ Drivers can:
 
 Administrators can:
 
-* Manage customers
+* Manage riders
 * Manage drivers
 * Manage vehicles
 * Monitor rides
@@ -352,7 +352,7 @@ FEEDBACK_SUBMITTED
 ### Example Flow
 
 ```text
-Customer
+Rider
    │
    ▼
 Ride Service
@@ -390,10 +390,10 @@ Location Service
     └──► WebSocket / SignalR
                 │
                 ▼
-          Customer App
+          Rider App
 ```
 
-The customer can receive updated driver location and trip status without repeatedly refreshing the application.
+The rider can receive updated driver location and trip status without repeatedly refreshing the application.
 
 ---
 
@@ -467,7 +467,7 @@ Payment Service
 
 # ⭐ Feedback & Rating
 
-Customers can submit:
+Riders can submit:
 
 * Overall rating
 * Driver behavior
@@ -491,7 +491,7 @@ LEXOR will progressively introduce AI/ML capabilities.
 ### 1. Feedback Sentiment Analysis
 
 ```text
-Customer Feedback
+Rider Feedback
        │
        ▼
 AI Analyzer
@@ -581,7 +581,7 @@ Which areas have the highest demand?
 
 Which drivers have declining performance?
 
-What are the major customer complaints?
+What are the major rider complaints?
 
 Summarize today's platform performance.
 ```
@@ -603,7 +603,7 @@ Ride Completed
 Send Feedback Request
       │
       ▼
-Customer Submits Feedback
+Rider Submits Feedback
       │
       ▼
 AI Sentiment Analysis
@@ -740,7 +740,7 @@ Analytics Store / OLAP
 * Executive Dashboard
 * Ride Analytics
 * Revenue Analytics
-* Customer Analytics
+* Rider Analytics
 * Driver Analytics
 * Geographic Analytics
 * Feedback Analytics
@@ -780,7 +780,7 @@ Planned capabilities include:
 * Secrets management
 * Environment-based configuration
 * Secure payment handling
-* Protection of sensitive customer information
+* Protection of sensitive rider information
 
 ---
 
@@ -914,7 +914,7 @@ Potential technologies include:
 
 * React application
 * Authentication UI
-* Customer dashboard
+* Rider dashboard
 * Driver dashboard
 * Admin dashboard
 * Ride booking
@@ -983,7 +983,7 @@ Potential technologies include:
 
 ## Must Work
 
-* Customer registration/login
+* Rider registration/login
 * Driver registration/login
 * Admin access
 * Ride booking
@@ -1023,7 +1023,7 @@ Potential technologies include:
 The complete LEXOR demonstration will follow this flow:
 
 ```text
-Customer
+Rider
    │
    ▼
 Book Ride

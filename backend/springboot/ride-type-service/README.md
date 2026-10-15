@@ -93,7 +93,7 @@ Copy `.env.example` to configure local or deployment environments:
 | `DB_PORT` | `3306` | MySQL database port |
 | `DB_NAME` | `lexor_db` | MySQL database schema name |
 | `DB_USERNAME` | `root` | Database username |
-| `DB_PASSWORD` | `21011017` | Database password |
+| `DB_PASSWORD` | *(None / Required)* | Database password (set via env var) |
 | `DB_URL` | *(constructed)* | Custom JDBC connection string |
 | `JWT_SECRET` | *(256-bit hex)* | HMAC-SHA secret key shared with Auth Service |
 | `JWT_EXPIRATION_MS` | `86400000` | Token expiration in milliseconds (24h) |

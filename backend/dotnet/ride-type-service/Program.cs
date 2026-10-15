@@ -27,8 +27,9 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 
 // Configure Database Connection (MySQL 8 with EF Core Pomelo)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Server=localhost;Port=3306;Database=lexor_db;Uid=root;Pwd=21011017;AllowPublicKeyRetrieval=True;SSLMode=None;";
+var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Server=localhost;Port=3306;Database=lexor_db;Uid=root;Pwd=;AllowPublicKeyRetrieval=True;SSLMode=None;";
 
 builder.Services.AddDbContext<LexorDbContext>(options =>
 {
@@ -92,8 +93,16 @@ var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
 
 if (string.IsNullOrWhiteSpace(jwtSecret))
 {
-    jwtSecret = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
+    throw new InvalidOperationException("JWT Secret is not configured. Set the JWT_SECRET or LEXOR_JWT_SECRET environment variable.");
 }
+
+builder.Services.PostConfigure<JwtSettings>(settings =>
+{
+    if (string.IsNullOrWhiteSpace(settings.Secret))
+    {
+        settings.Secret = jwtSecret;
+    }
+});
 
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
     ?? builder.Configuration.GetSection($"{JwtSettings.SectionName}:Issuer").Value

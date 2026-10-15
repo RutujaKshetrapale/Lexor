@@ -347,6 +347,21 @@ public class VehicleAdminService : IVehicleAdminService
                 throw new InvalidStatusTransitionException("Only a suspended vehicle can be reinstated");
             }
 
+            var currentDocs = await _dbContext.VehicleDocuments
+                .Where(d => d.VehicleId == vehicle.Id && d.IsCurrent)
+                .ToListAsync();
+
+            var allVerified = _policyService.HasAllRequiredDocumentsVerified(currentDocs);
+            if (!allVerified)
+            {
+                var missing = _policyService.GetMissingDocuments(currentDocs);
+                var missingDetail = missing.Any()
+                    ? string.Join(", ", missing)
+                    : "one or more documents still pending review";
+                throw new InvalidStatusTransitionException(
+                    $"Cannot reinstate vehicle. Mandatory compliance documents are not fully verified. Missing or unverified: {missingDetail}");
+            }
+
             vehicle.VerificationStatus = VehicleVerificationStatus.VERIFIED;
             vehicle.IsActive = true;
             vehicle.RejectionReason = null;
