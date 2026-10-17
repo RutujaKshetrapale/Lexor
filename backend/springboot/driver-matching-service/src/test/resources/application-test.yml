@@ -1,0 +1,46 @@
+server:
+  port: 8093
+
+spring:
+  application:
+    name: driver-matching-service-test
+
+  datasource:
+    url: jdbc:h2:mem:lexordb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL;NON_KEYWORDS=YEAR,year;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+    properties:
+      hibernate:
+        format_sql: false
+
+jwt:
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  expiration-ms: 86400000
+
+matching:
+  max-radius-km: 10.0
+  max-location-age-seconds: 300
+  reservation-ttl-seconds: 120
+  internal-api-key: test-internal-service-key-xyz
+
+services:
+  ride-request-service:
+    url: http://localhost:8091
+  driver-service:
+    url: http://localhost:8085
+
+logging:
+  level:
+    root: INFO
+    com.lexor.matching: DEBUG
