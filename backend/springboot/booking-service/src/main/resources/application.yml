@@ -1,0 +1,53 @@
+server:
+  port: ${PORT:8095}
+
+spring:
+  application:
+    name: booking-service
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:lexor_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.MySQLDialect
+
+jwt:
+  secret: ${JWT_SECRET:${LEXOR_JWT_SECRET:}}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours in milliseconds
+
+booking:
+  matching-service-url: ${DRIVER_MATCHING_SERVICE_URL:http://localhost:8093}
+  ride-request-service-url: ${RIDE_REQUEST_SERVICE_URL:http://localhost:8091}
+  driver-service-url: ${DRIVER_SERVICE_URL:http://localhost:8085}
+  internal-api-key: ${MATCHING_INTERNAL_API_KEY:lexor_internal_matching_service_key_2026}
+  otp-expiration-minutes: ${BOOKING_OTP_EXPIRATION_MINUTES:120}
+  connect-timeout-ms: ${BOOKING_CONNECT_TIMEOUT_MS:3000}
+  read-timeout-ms: ${BOOKING_READ_TIMEOUT_MS:5000}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.lexor.booking: ${LOG_LEVEL_BOOKING:DEBUG}

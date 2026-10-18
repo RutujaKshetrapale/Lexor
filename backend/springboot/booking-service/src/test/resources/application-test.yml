@@ -1,0 +1,43 @@
+server:
+  port: 8095
+
+spring:
+  application:
+    name: booking-service-test
+
+  datasource:
+    url: jdbc:h2:mem:lexordb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL;NON_KEYWORDS=YEAR,year;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+    properties:
+      hibernate:
+        format_sql: false
+
+jwt:
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  expiration-ms: 86400000
+
+booking:
+  matching-service-url: http://localhost:8093
+  ride-request-service-url: http://localhost:8091
+  driver-service-url: http://localhost:8085
+  internal-api-key: test-internal-service-key-xyz
+  otp-expiration-minutes: 120
+  connect-timeout-ms: 3000
+  read-timeout-ms: 3000
+
+logging:
+  level:
+    root: INFO
+    com.lexor.booking: DEBUG

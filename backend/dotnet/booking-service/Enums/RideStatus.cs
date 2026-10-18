@@ -1,0 +1,15 @@
+namespace BookingService.Enums;
+
+public enum RideStatus
+{
+    REQUESTED,
+    SEARCHING_DRIVER,
+    DRIVER_ASSIGNED,
+    DRIVER_ARRIVING,
+    DRIVER_ARRIVED,
+    TRIP_STARTED,
+    TRIP_COMPLETED,
+    PAYMENT_COMPLETED,
+    FEEDBACK,
+    CANCELLED
+}
