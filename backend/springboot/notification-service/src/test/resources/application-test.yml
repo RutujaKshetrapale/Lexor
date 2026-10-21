@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:notification_test_db;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+lexor:
+  jwt:
+    secret: lexor-default-jwt-secret-key-32-chars-long!
+    expiration-ms: 86400000
+  security:
+    internal-service-key: lexor-internal-service-secret-key-2026
+  notification:
+    providers:
+      fcm:
+        enabled: true
+      sms:
+        enabled: true
+      email:
+        enabled: true
+    limits:
+      otp-rate-limit-seconds: 60
+      max-inbox-page-size: 50

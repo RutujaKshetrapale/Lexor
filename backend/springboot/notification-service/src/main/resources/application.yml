@@ -1,0 +1,74 @@
+server:
+  port: ${PORT:8099}
+
+spring:
+  application:
+    name: notification-service
+
+  datasource:
+    url: ${NOTIFICATION_DB_URL:jdbc:mysql://localhost:3306/lexor_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8}
+    username: ${NOTIFICATION_DB_USERNAME:lexor_user}
+    password: ${NOTIFICATION_DB_PASSWORD:lexor_secure_password_2026}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# Notification Platform Properties
+lexor:
+  jwt:
+    secret: ${JWT_SECRET:${LEXOR_JWT_SECRET:lexor-default-jwt-secret-key-32-chars-long!}}
+    expiration-ms: 86400000
+  security:
+    internal-service-key: ${INTERNAL_SERVICE_KEY:lexor-internal-service-secret-key-2026}
+  notification:
+    providers:
+      fcm:
+        enabled: true
+        server-key: ${FCM_SERVER_KEY:fcm_test_server_key_sandbox}
+        project-id: ${FCM_PROJECT_ID:lexor-mobility-sandbox}
+      sms:
+        enabled: true
+        provider: ${SMS_PROVIDER:TWILIO_SANDBOX}
+        account-sid: ${TWILIO_ACCOUNT_SID:AC_test_lexor_sid}
+        auth-token: ${TWILIO_AUTH_TOKEN:auth_token_test_sandbox}
+        from-number: ${TWILIO_FROM_NUMBER:+15005550006}
+        rate-limit-per-hour: 5
+      email:
+        enabled: true
+        provider: ${EMAIL_PROVIDER:SMTP_SANDBOX}
+        from-address: ${EMAIL_FROM_ADDRESS:no-reply@lexor.com}
+        from-name: "LEXOR Mobility"
+    limits:
+      otp-rate-limit-seconds: 60
+      max-inbox-page-size: 50
+    templates:
+      default-locale: en
+
+# Actuator Endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# Springdoc OpenAPI Documentation
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
