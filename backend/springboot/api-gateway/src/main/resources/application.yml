@@ -92,6 +92,22 @@ spring:
           predicates:
             - Path=/api/v1/admin/bookings/**
 
+        # Payment Service Routes
+        - id: payment-service-driver-route
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8097}
+          predicates:
+            - Path=/api/v1/driver/payments/**
+
+        - id: payment-service-admin-route
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8097}
+          predicates:
+            - Path=/api/v1/admin/payments/**
+
+        - id: payment-service-route
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8097}
+          predicates:
+            - Path=/api/v1/payments/**
+
       httpclient:
         connect-timeout: 3000
         response-timeout: 5s

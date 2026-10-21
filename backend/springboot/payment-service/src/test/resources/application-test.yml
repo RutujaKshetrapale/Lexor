@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: payment-service-test
+  datasource:
+    url: jdbc:h2:mem:payment_test_db;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+jwt:
+  secret: dGhpcy1pcy1hLXZlcnktc2VjdXJlLWtleS1mb3ItbGV4b3Itc21hcnQtbW9iaWxpdHktMjAyNC1qd3QtdG9rZW4tc2VjcmV0LWtleQ==
+  expiration-ms: 86400000
+
+services:
+  booking-url: http://localhost:8095
+  timeout-seconds: 5
+
+payment:
+  provider: RAZORPAY
+  commission-percentage: 20.00
+  currency: INR
+  razorpay:
+    key-id: rzp_test_sample_key_123456
+    key-secret: sample_razorpay_secret_654321
+    webhook-secret: sample_webhook_secret_987654

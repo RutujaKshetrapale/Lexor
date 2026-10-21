@@ -1,0 +1,18 @@
+namespace PaymentService.Enums;
+
+public enum PaymentStatus
+{
+    CREATED,
+    PENDING,
+    REQUIRES_ACTION,
+    AUTHORIZED,
+    CAPTURE_PENDING,
+    SUCCEEDED,
+    FAILED,
+    CANCELLED,
+    EXPIRED,
+    REFUND_PENDING,
+    PARTIALLY_REFUNDED,
+    REFUNDED,
+    RECONCILIATION_REQUIRED
+}

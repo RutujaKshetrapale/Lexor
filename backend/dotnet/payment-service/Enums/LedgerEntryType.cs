@@ -1,0 +1,13 @@
+namespace PaymentService.Enums;
+
+public enum LedgerEntryType
+{
+    FARE_COLLECTED,
+    CASH_COLLECTED_BY_DRIVER,
+    PLATFORM_COMMISSION,
+    DRIVER_EARNINGS,
+    DRIVER_PAYABLE,
+    DRIVER_CASH_LIABILITY,
+    REFUND_DEDUCTION,
+    ADJUSTMENT
+}
