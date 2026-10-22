@@ -37,6 +37,27 @@ spring:
           predicates:
             - Path=/api/v1/drivers/me/location/**
 
+        # Feedback Service Driver Routes (Specific path before driver-service)
+        - id: feedback-service-driver-rides-route
+          uri: ${FEEDBACK_SERVICE_URL:http://localhost:8101}
+          predicates:
+            - Path=/api/v1/drivers/me/rides/**
+
+        - id: feedback-service-driver-feedback-route
+          uri: ${FEEDBACK_SERVICE_URL:http://localhost:8101}
+          predicates:
+            - Path=/api/v1/drivers/me/feedback/**
+
+        - id: feedback-service-driver-rating-route
+          uri: ${FEEDBACK_SERVICE_URL:http://localhost:8101}
+          predicates:
+            - Path=/api/v1/drivers/me/rating-summary/**
+
+        - id: feedback-service-driver-summary-public-route
+          uri: ${FEEDBACK_SERVICE_URL:http://localhost:8101}
+          predicates:
+            - Path=/api/v1/drivers/*/rating-summary
+
         # Driver Service Routes
         - id: driver-service-route
           uri: ${DRIVER_SERVICE_URL:http://localhost:8085}
@@ -118,6 +139,17 @@ spring:
           uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8099}
           predicates:
             - Path=/api/v1/notifications/**
+
+        # Feedback Service Routes
+        - id: feedback-service-admin-route
+          uri: ${FEEDBACK_SERVICE_URL:http://localhost:8101}
+          predicates:
+            - Path=/api/v1/admin/feedback/**
+
+        - id: feedback-service-route
+          uri: ${FEEDBACK_SERVICE_URL:http://localhost:8101}
+          predicates:
+            - Path=/api/v1/feedback/**
 
       httpclient:
         connect-timeout: 3000

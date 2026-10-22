@@ -1,0 +1,57 @@
+server:
+  port: ${PORT:${SERVER_PORT:8101}}
+
+spring:
+  application:
+    name: feedback-service
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:lexor_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+    show-sql: false
+    open-in-view: false
+
+feedback:
+  policy:
+    edit-window-minutes: ${FEEDBACK_EDIT_WINDOW_MINUTES:120}
+    submission-window-days: ${FEEDBACK_SUBMISSION_WINDOW_DAYS:7}
+    edit-enabled: ${FEEDBACK_EDIT_ENABLED:true}
+    report-auto-review-threshold: ${FEEDBACK_REPORT_THRESHOLD:3}
+  jwt:
+    secret: ${JWT_SECRET:${LEXOR_JWT_SECRET:lexor-default-jwt-secret-key-32-chars-long!}}
+    expiration-ms: 86400000
+  security:
+    internal-service-key: ${INTERNAL_SERVICE_KEY:lexor-internal-service-secret-key-2026}
+  services:
+    booking-url: ${BOOKING_SERVICE_URL:http://localhost:8095}
+    notification-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8099}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
