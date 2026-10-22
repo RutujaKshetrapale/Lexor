@@ -151,6 +151,27 @@ spring:
           predicates:
             - Path=/api/v1/feedback/**
 
+        # Admin Operations Service Routes (Phase 14)
+        - id: admin-operations-service-route
+          uri: ${ADMIN_OPERATIONS_SERVICE_URL:http://localhost:8103}
+          predicates:
+            - Path=/api/v1/admin/operations/**
+
+        - id: admin-analytics-service-route
+          uri: ${ADMIN_OPERATIONS_SERVICE_URL:http://localhost:8103}
+          predicates:
+            - Path=/api/v1/admin/analytics/**
+
+        - id: admin-health-monitor-service-route
+          uri: ${ADMIN_OPERATIONS_SERVICE_URL:http://localhost:8103}
+          predicates:
+            - Path=/api/v1/admin/health-monitor/**
+
+        - id: admin-audit-logs-service-route
+          uri: ${ADMIN_OPERATIONS_SERVICE_URL:http://localhost:8103}
+          predicates:
+            - Path=/api/v1/admin/audit-logs/**
+
       httpclient:
         connect-timeout: 3000
         response-timeout: 5s
