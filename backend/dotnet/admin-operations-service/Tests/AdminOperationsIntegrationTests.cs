@@ -332,4 +332,43 @@ public class AdminOperationsIntegrationTests
         Assert.True(updateResponse.Success);
         Assert.Equal("15", updateResponse.Data!.SettingValue);
     }
+
+    [Fact]
+    public async Task ExecutiveOverview_WhenUpstreamFails_ReportsPartialData()
+    {
+        var (_, opsController, _, _, _) = CreateTestControllers();
+
+        // In test environment, upstream services are offline, so IsPartialData must be true
+        var actionResult = await opsController.GetOverview("TODAY", null, null);
+        var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
+        var response = Assert.IsType<ApiResponse<ExecutiveOverviewResponse>>(okResult.Value);
+
+        Assert.True(response.Success);
+        Assert.NotNull(response.Data);
+        Assert.True(response.Data.IsPartialData);
+        Assert.NotEmpty(response.Data.UnavailableSources);
+    }
+
+    [Fact]
+    public void AdminControllers_EnforceAdminRoleAuthorization()
+    {
+        var controllers = new[]
+        {
+            typeof(AdminOperationsController),
+            typeof(AdminAnalyticsController),
+            typeof(AdminHealthMonitorController),
+            typeof(AdminAuditLogController)
+        };
+
+        foreach (var controller in controllers)
+        {
+            var authAttr = (Microsoft.AspNetCore.Authorization.AuthorizeAttribute?)
+                Attribute.GetCustomAttribute(controller, typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute));
+
+            Assert.NotNull(authAttr);
+            Assert.Contains("ADMIN", authAttr.Roles);
+            Assert.DoesNotContain("RIDER", authAttr.Roles);
+            Assert.DoesNotContain("DRIVER", authAttr.Roles);
+        }
+    }
 }

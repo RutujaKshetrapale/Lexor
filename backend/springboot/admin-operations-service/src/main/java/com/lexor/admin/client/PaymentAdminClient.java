@@ -25,19 +25,28 @@ public class PaymentAdminClient {
     @Value("${lexor.services.payment-service-url:http://localhost:8097}")
     private String paymentServiceUrl;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
-    public Map<String, Object> getFinancialReconciliation() {
-        Map<String, Object> result = new HashMap<>();
-        result.put("successfulPaymentTotals", BigDecimal.ZERO);
-        result.put("refundTotals", BigDecimal.ZERO);
-        result.put("platformCommissionEarned", BigDecimal.ZERO);
-        result.put("totalPaymentsCount", 0L);
+    @lombok.Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class PaymentReconciliationResult {
+        private BigDecimal successfulPaymentTotals;
+        private BigDecimal refundTotals;
+        private BigDecimal platformCommissionEarned;
+        private long totalPaymentsCount;
+        private boolean isAvailable;
+        private String errorMessage;
+    }
 
+    public PaymentReconciliationResult getFinancialReconciliation() {
         try {
             HttpHeaders headers = new HttpHeaders();
-            headers.set("X-Internal-Service-Key", internalApiKey);
+            if (internalApiKey != null && !internalApiKey.isBlank()) {
+                headers.set("X-Internal-Service-Key", internalApiKey);
+            }
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
             String url = paymentServiceUrl + "/api/v1/admin/payments/reconciliation";
@@ -50,16 +59,34 @@ public class PaymentAdminClient {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
-                result.put("successfulPaymentTotals", parseBigDecimal(body.get("totalCollectedAmount")));
-                result.put("refundTotals", parseBigDecimal(body.get("totalRefundsDisbursed")));
-                result.put("platformCommissionEarned", parseBigDecimal(body.get("totalCommissionEarned")));
-                result.put("totalPaymentsCount", parseLong(body.get("totalPaymentsCount")));
+                return PaymentReconciliationResult.builder()
+                        .successfulPaymentTotals(parseBigDecimal(body.get("totalCollectedAmount")))
+                        .refundTotals(parseBigDecimal(body.get("totalRefundsDisbursed")))
+                        .platformCommissionEarned(parseBigDecimal(body.get("totalCommissionEarned")))
+                        .totalPaymentsCount(parseLong(body.get("totalPaymentsCount")))
+                        .isAvailable(true)
+                        .build();
+            } else {
+                return PaymentReconciliationResult.builder()
+                        .successfulPaymentTotals(BigDecimal.ZERO)
+                        .refundTotals(BigDecimal.ZERO)
+                        .platformCommissionEarned(BigDecimal.ZERO)
+                        .totalPaymentsCount(0L)
+                        .isAvailable(false)
+                        .errorMessage("Unsuccessful response from payment service: " + response.getStatusCode())
+                        .build();
             }
         } catch (Exception e) {
             log.warn("Could not query payment reconciliation from {}: {}", paymentServiceUrl, e.getMessage());
+            return PaymentReconciliationResult.builder()
+                    .successfulPaymentTotals(BigDecimal.ZERO)
+                    .refundTotals(BigDecimal.ZERO)
+                    .platformCommissionEarned(BigDecimal.ZERO)
+                    .totalPaymentsCount(0L)
+                    .isAvailable(false)
+                    .errorMessage(e.getMessage())
+                    .build();
         }
-
-        return result;
     }
 
     private BigDecimal parseBigDecimal(Object val) {

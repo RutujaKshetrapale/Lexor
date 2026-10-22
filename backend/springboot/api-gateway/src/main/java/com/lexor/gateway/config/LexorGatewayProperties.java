@@ -15,7 +15,7 @@ public class LexorGatewayProperties {
     private RateLimit rateLimit = new RateLimit();
 
     public static class Jwt {
-        private String secret = "lexor-default-jwt-secret-key-32-chars-long!";
+        private String secret;
         private String issuer = "LEXOR";
         private String audience = "LEXOR";
 

@@ -28,7 +28,7 @@ public class RideRequestAdminClient {
     @Value("${lexor.services.ride-request-service-url:http://localhost:8091}")
     private String rideRequestServiceUrl;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
     public Map<String, Object> getRideRequestMetrics() {

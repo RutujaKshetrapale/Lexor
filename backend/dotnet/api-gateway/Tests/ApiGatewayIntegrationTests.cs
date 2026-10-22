@@ -28,6 +28,7 @@ public class TestServerFixture : IAsyncLifetime
         builder.Configuration.AddJsonFile("appsettings.json", optional: true);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
+            ["Jwt:Secret"] = ApiGatewayIntegrationTests.TestSecret,
             ["RateLimiting:PermitLimit"] = "3",
             ["RateLimiting:WindowSeconds"] = "60"
         });
@@ -52,7 +53,7 @@ public class TestServerFixture : IAsyncLifetime
 public class ApiGatewayIntegrationTests : IClassFixture<TestServerFixture>
 {
     private readonly HttpClient _client;
-    private const string TestSecret = "lexor-default-jwt-secret-key-32-chars-long!";
+    public const string TestSecret = "lexor-default-jwt-secret-key-32-chars-long!";
 
     public ApiGatewayIntegrationTests(TestServerFixture fixture)
     {

@@ -84,13 +84,28 @@ public class OperationsDashboardService : IOperationsDashboardService
                 break;
         }
 
-        var (totalRides, completedRides, cancelledRides, activeRides, gross) = await _bookingClient.GetBookingMetricsAsync(start, end);
-        var (collections, refunds, commission, _) = await _paymentClient.GetFinancialReconciliationAsync();
+        var bookingMetrics = await _bookingClient.GetBookingMetricsAsync(start, end);
+        var paymentMetrics = await _paymentClient.GetFinancialReconciliationAsync();
         var (totalDrivers, onlineDrivers, inTripDrivers, pendingVerif) = await _driverClient.GetDriverMetricsAsync();
         var vehiclesCount = await _vehicleClient.GetRegisteredVehiclesCountAsync();
         var (ridersCount, userDriversCount) = await _userClient.GetUserCountsAsync();
         var pendingRequests = await _rideRequestClient.GetPendingRequestsCountAsync();
         var (avgRating, pendingReports, _) = await _feedbackClient.GetFeedbackMetricsAsync();
+
+        var unavailableSources = new List<string>();
+        bool isPartial = false;
+
+        if (!bookingMetrics.IsAvailable)
+        {
+            isPartial = true;
+            unavailableSources.Add($"Booking Service: {bookingMetrics.ErrorMessage ?? "Unavailable"}");
+        }
+
+        if (!paymentMetrics.IsAvailable)
+        {
+            isPartial = true;
+            unavailableSources.Add($"Payment Service: {paymentMetrics.ErrorMessage ?? "Unavailable"}");
+        }
 
         var definitions = new Dictionary<string, string>
         {
@@ -107,10 +122,10 @@ public class OperationsDashboardService : IOperationsDashboardService
 
         return new ExecutiveOverviewResponse
         {
-            TotalRides = totalRides,
-            CompletedRides = completedRides,
-            CancelledRides = cancelledRides,
-            ActiveRides = activeRides,
+            TotalRides = bookingMetrics.TotalRides,
+            CompletedRides = bookingMetrics.CompletedRides,
+            CancelledRides = bookingMetrics.CancelledRides,
+            ActiveRides = bookingMetrics.ActiveRides,
             PendingRideRequests = pendingRequests,
             OnlineDrivers = onlineDrivers,
             InTripDrivers = inTripDrivers,
@@ -118,10 +133,10 @@ public class OperationsDashboardService : IOperationsDashboardService
             RegisteredRiders = ridersCount,
             RegisteredDrivers = totalDrivers > 0 ? totalDrivers : userDriversCount,
             RegisteredVehicles = vehiclesCount,
-            GrossBookingValue = gross,
-            SuccessfulPaymentTotals = collections,
-            RefundTotals = refunds,
-            PlatformCommissionEarned = commission,
+            GrossBookingValue = bookingMetrics.GrossBookingValue,
+            SuccessfulPaymentTotals = paymentMetrics.Collections,
+            RefundTotals = paymentMetrics.Refunds,
+            PlatformCommissionEarned = paymentMetrics.Commission,
             AverageDriverRating = avgRating,
             FeedbackReportsAwaitingModeration = pendingReports,
             TimeRange = rangeKey,
@@ -129,6 +144,8 @@ public class OperationsDashboardService : IOperationsDashboardService
             RangeEndDate = end,
             TimeZone = TimeZoneInfo.Utc.Id,
             CalculatedAt = DateTime.UtcNow,
+            IsPartialData = isPartial,
+            UnavailableSources = unavailableSources,
             MetricDefinitions = definitions
         };
     }

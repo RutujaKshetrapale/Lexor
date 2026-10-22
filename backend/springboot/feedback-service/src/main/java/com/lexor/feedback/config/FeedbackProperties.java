@@ -24,13 +24,13 @@ public class FeedbackProperties {
 
     @Data
     public static class Jwt {
-        private String secret = "lexor-default-jwt-secret-key-32-chars-long!";
+        private String secret;
         private long expirationMs = 86400000;
     }
 
     @Data
     public static class Security {
-        private String internalServiceKey = "lexor-internal-service-secret-key-2026";
+        private String internalServiceKey;
     }
 
     @Data

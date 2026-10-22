@@ -26,5 +26,8 @@ public class ExecutiveOverviewResponse
     public string TimeZone { get; set; } = "UTC";
     public DateTime CalculatedAt { get; set; } = DateTime.UtcNow;
 
+    public bool IsPartialData { get; set; } = false;
+    public List<string> UnavailableSources { get; set; } = new();
+
     public Dictionary<string, string> MetricDefinitions { get; set; } = new();
 }

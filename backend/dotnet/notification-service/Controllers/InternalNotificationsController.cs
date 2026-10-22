@@ -29,7 +29,7 @@ public class InternalNotificationsController : ControllerBase
 
     private void ValidateInternalKey()
     {
-        var expectedKey = _configuration["InternalServiceKey"] ?? "lexor-internal-service-secret-key-2026";
+        var expectedKey = _configuration["InternalServiceKey"] ?? _configuration["INTERNAL_SERVICE_KEY"];
         var providedKey = Request.Headers["X-Internal-Service-Key"].FirstOrDefault();
 
         // Also permit if authenticated with ROLE_INTERNAL or ROLE_ADMIN
@@ -38,7 +38,7 @@ public class InternalNotificationsController : ControllerBase
             return;
         }
 
-        if (string.IsNullOrEmpty(providedKey) || providedKey != expectedKey)
+        if (string.IsNullOrWhiteSpace(expectedKey) || string.IsNullOrEmpty(providedKey) || providedKey != expectedKey)
         {
             throw new ForbiddenException("Invalid or missing X-Internal-Service-Key header");
         }

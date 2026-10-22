@@ -26,74 +26,133 @@ public class BookingAdminClient {
     @Value("${lexor.services.booking-service-url:http://localhost:8095}")
     private String bookingServiceUrl;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
-    public Map<String, Object> getBookingMetrics(LocalDateTime start, LocalDateTime end) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("totalRides", 0L);
-        result.put("completedRides", 0L);
-        result.put("cancelledRides", 0L);
-        result.put("activeRides", 0L);
-        result.put("grossBookingValue", BigDecimal.ZERO);
+    @lombok.Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class BookingMetricsResult {
+        private long totalRides;
+        private long completedRides;
+        private long cancelledRides;
+        private long activeRides;
+        private BigDecimal grossBookingValue;
+        private boolean isAvailable;
+        private String errorMessage;
+    }
+
+    public BookingMetricsResult getBookingMetrics(LocalDateTime start, LocalDateTime end) {
+        long completed = 0;
+        long cancelled = 0;
+        long active = 0;
+        BigDecimal gross = BigDecimal.ZERO;
+        long totalCount = 0;
+        Set<String> seenBookingUuids = new HashSet<>();
+
+        int page = 0;
+        int totalPages = 1;
+        int maxPages = 50; // Safety cap against infinite pagination
+        boolean anyPageFetched = false;
 
         try {
             HttpHeaders headers = new HttpHeaders();
-            headers.set("X-Internal-Service-Key", internalApiKey);
+            if (internalApiKey != null && !internalApiKey.isBlank()) {
+                headers.set("X-Internal-Service-Key", internalApiKey);
+            }
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-            // Fetch admin bookings page 0 to sample counts and totals
-            String url = bookingServiceUrl + "/api/v1/admin/bookings?size=100";
-            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    entity,
-                    new ParameterizedTypeReference<>() {}
-            );
+            while (page < totalPages && page < maxPages) {
+                String url = bookingServiceUrl + "/api/v1/admin/bookings?page=" + page + "&size=100";
+                ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                        url,
+                        HttpMethod.GET,
+                        entity,
+                        new ParameterizedTypeReference<>() {}
+                );
 
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                    break;
+                }
+
+                anyPageFetched = true;
                 Map<String, Object> body = response.getBody();
-                Object totalEl = body.get("totalElements");
-                long totalCount = totalEl instanceof Number ? ((Number) totalEl).longValue() : 0L;
-                result.put("totalRides", totalCount);
+
+                // Extract totalPages and totalElements on first page
+                if (page == 0) {
+                    Object totalEl = body.get("totalElements");
+                    totalCount = totalEl instanceof Number ? ((Number) totalEl).longValue() : 0L;
+
+                    Object tp = body.get("totalPages");
+                    if (tp instanceof Number num) {
+                        totalPages = num.intValue();
+                    }
+                }
 
                 Object contentObj = body.get("content");
                 if (contentObj instanceof List<?> list) {
-                    long completed = 0;
-                    long cancelled = 0;
-                    long active = 0;
-                    BigDecimal gross = BigDecimal.ZERO;
-
                     for (Object item : list) {
                         if (item instanceof Map<?, ?> map) {
+                            String bookingUuid = (String) map.get("bookingUuid");
+                            if (bookingUuid != null && !seenBookingUuids.add(bookingUuid)) {
+                                continue; // Skip duplicate records across pages
+                            }
+
                             String status = String.valueOf(map.get("status"));
                             if ("COMPLETED".equals(status)) {
                                 completed++;
+                                // Accrue gross booking value ONLY for completed rides
+                                Object fareObj = map.get("fareAmount");
+                                if (fareObj == null) fareObj = map.get("totalFare");
+                                if (fareObj instanceof Number num) {
+                                    gross = gross.add(BigDecimal.valueOf(num.doubleValue()));
+                                }
                             } else if (status.startsWith("CANCELLED") || "DECLINED_BY_DRIVER".equals(status) || "EXPIRED".equals(status)) {
                                 cancelled++;
                             } else if ("IN_PROGRESS".equals(status) || "ACCEPTED".equals(status) || "ARRIVED".equals(status) || "CONFIRMED".equals(status)) {
                                 active++;
                             }
-
-                            Object fareObj = map.get("fareAmount");
-                            if (fareObj == null) fareObj = map.get("totalFare");
-                            if (fareObj instanceof Number num) {
-                                gross = gross.add(BigDecimal.valueOf(num.doubleValue()));
-                            }
                         }
                     }
-
-                    result.put("completedRides", completed);
-                    result.put("cancelledRides", cancelled);
-                    result.put("activeRides", active);
-                    result.put("grossBookingValue", gross);
                 }
+
+                page++;
             }
+
+            if (!anyPageFetched) {
+                return BookingMetricsResult.builder()
+                        .totalRides(0L)
+                        .completedRides(0L)
+                        .cancelledRides(0L)
+                        .activeRides(0L)
+                        .grossBookingValue(BigDecimal.ZERO)
+                        .isAvailable(false)
+                        .errorMessage("No response received from booking service")
+                        .build();
+            }
+
+            return BookingMetricsResult.builder()
+                    .totalRides(Math.max(totalCount, (long) seenBookingUuids.size()))
+                    .completedRides(completed)
+                    .cancelledRides(cancelled)
+                    .activeRides(active)
+                    .grossBookingValue(gross)
+                    .isAvailable(true)
+                    .build();
+
         } catch (Exception e) {
             log.warn("Could not query booking metrics from {}: {}", bookingServiceUrl, e.getMessage());
+            return BookingMetricsResult.builder()
+                    .totalRides(0L)
+                    .completedRides(0L)
+                    .cancelledRides(0L)
+                    .activeRides(0L)
+                    .grossBookingValue(BigDecimal.ZERO)
+                    .isAvailable(false)
+                    .errorMessage(e.getMessage())
+                    .build();
         }
-
-        return result;
     }
 
     public List<LiveOperationsSnapshotResponse.ActiveRideItem> getActiveRides() {

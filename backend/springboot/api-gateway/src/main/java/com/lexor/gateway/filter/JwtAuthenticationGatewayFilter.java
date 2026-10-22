@@ -47,7 +47,11 @@ public class JwtAuthenticationGatewayFilter implements WebFilter, Ordered {
     }
 
     private SecretKey getSigningKey() {
-        byte[] keyBytes = gatewayProperties.getJwt().getSecret().getBytes(StandardCharsets.UTF_8);
+        String secret = gatewayProperties.getJwt().getSecret();
+        if (secret == null || secret.trim().length() < 32) {
+            throw new IllegalStateException("Missing or insufficiently secure JWT secret. 'gateway.jwt.secret' must be at least 32 characters.");
+        }
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 

@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        "gateway.jwt.secret=" + ApiGatewayIntegrationTest.TEST_SECRET,
         "gateway.rate-limit.burst-capacity=5",
         "gateway.rate-limit.replenish-rate=1"
 })
@@ -28,7 +29,7 @@ public class ApiGatewayIntegrationTest {
     @Autowired
     private WebTestClient webTestClient;
 
-    private static final String TEST_SECRET = "lexor-default-jwt-secret-key-32-chars-long!";
+    public static final String TEST_SECRET = "lexor-default-jwt-secret-key-32-chars-long!";
 
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(TEST_SECRET.getBytes(StandardCharsets.UTF_8));

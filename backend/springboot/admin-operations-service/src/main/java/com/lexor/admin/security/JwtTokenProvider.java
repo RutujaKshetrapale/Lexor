@@ -14,7 +14,10 @@ public class JwtTokenProvider {
 
     private final SecretKey key;
 
-    public JwtTokenProvider(@Value("${lexor.security.jwt.secret:lexor-default-jwt-secret-key-32-chars-long!}") String secret) {
+    public JwtTokenProvider(@Value("${lexor.security.jwt.secret:}") String secret) {
+        if (secret == null || secret.trim().length() < 32) {
+            throw new IllegalStateException("Missing or insufficiently secure JWT secret. 'lexor.security.jwt.secret' must be at least 32 characters.");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -39,7 +42,7 @@ public class JwtTokenProvider {
     public String getRoleFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
         Object role = claims.get("role");
-        return role != null ? role.toString() : "ROLE_ADMIN";
+        return role != null ? role.toString() : "";
     }
 
     public String getEmailFromToken(String token) {

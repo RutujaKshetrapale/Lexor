@@ -12,6 +12,13 @@ public static class GatewayServiceExtensions
 {
     public static IServiceCollection AddGatewayServices(this IServiceCollection services, IConfiguration configuration)
     {
+        var jwtSecret = configuration["Jwt:Secret"] ?? configuration["JWT_SECRET"];
+        var env = configuration["ASPNETCORE_ENVIRONMENT"] ?? configuration["DOTNET_ENVIRONMENT"] ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if ((string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32) && env != "Testing")
+        {
+            throw new InvalidOperationException("Missing or insufficiently secure JWT secret. 'Jwt:Secret' or 'JWT_SECRET' must be at least 32 characters.");
+        }
+
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<CorsOptions>(configuration.GetSection(CorsOptions.SectionName));
         services.Configure<RateLimitingOptions>(configuration.GetSection(RateLimitingOptions.SectionName));

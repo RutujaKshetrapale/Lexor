@@ -24,7 +24,7 @@ public class UserAdminClient {
     @Value("${lexor.services.user-service-url:http://localhost:8083}")
     private String userServiceUrl;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
     public Map<String, Object> getUserMetrics() {

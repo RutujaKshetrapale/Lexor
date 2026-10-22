@@ -25,7 +25,7 @@ public class FeedbackAdminClient {
     @Value("${lexor.services.feedback-service-url:http://localhost:8101}")
     private String feedbackServiceUrl;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
     public Map<String, Object> getFeedbackMetrics() {

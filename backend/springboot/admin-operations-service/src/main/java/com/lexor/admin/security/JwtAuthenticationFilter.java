@@ -21,7 +21,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
     @Override
@@ -30,7 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // Check for internal service key first
         String internalKeyHeader = request.getHeader("X-Internal-Service-Key");
-        if (StringUtils.hasText(internalKeyHeader) && internalKeyHeader.equals(internalApiKey)) {
+        if (StringUtils.hasText(internalApiKey) && StringUtils.hasText(internalKeyHeader) && internalKeyHeader.equals(internalApiKey)) {
             UserPrincipal principal = UserPrincipal.create("internal-service", "internal@lexor.com", "ROLE_ADMIN");
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     principal, null, principal.getAuthorities());

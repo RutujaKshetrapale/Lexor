@@ -66,17 +66,18 @@ public class GlobalExceptionMiddleware
 public class InternalServiceMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly string _expectedApiKey;
+    private readonly string? _expectedApiKey;
 
     public InternalServiceMiddleware(RequestDelegate next, IConfiguration config)
     {
         _next = next;
-        _expectedApiKey = config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+        _expectedApiKey = config["InternalService:ApiKey"] ?? config["INTERNAL_SERVICE_API_KEY"];
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (context.Request.Headers.TryGetValue("X-Internal-Service-Key", out var headerKey) &&
+        if (!string.IsNullOrWhiteSpace(_expectedApiKey) &&
+            context.Request.Headers.TryGetValue("X-Internal-Service-Key", out var headerKey) &&
             !string.IsNullOrWhiteSpace(headerKey) &&
             headerKey == _expectedApiKey)
         {

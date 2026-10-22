@@ -41,7 +41,18 @@ else
 }
 
 // JWT Authentication
-var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "lexor-default-jwt-secret-key-32-chars-long!";
+var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? builder.Configuration["JWT_SECRET"];
+if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
+{
+    if (builder.Environment.IsEnvironment("Testing"))
+    {
+        jwtSecret = "lexor-testing-jwt-secret-key-must-be-at-least-32-chars!";
+    }
+    else
+    {
+        throw new InvalidOperationException("Missing or insufficiently secure JWT secret. 'JwtSettings:Secret' or 'JWT_SECRET' must be at least 32 characters.");
+    }
+}
 var key = Encoding.UTF8.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

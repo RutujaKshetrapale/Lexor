@@ -25,7 +25,7 @@ public class DriverAdminClient {
     @Value("${lexor.services.driver-service-url:http://localhost:8085}")
     private String driverServiceUrl;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
     public Map<String, Object> getDriverMetrics() {

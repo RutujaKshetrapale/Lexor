@@ -24,7 +24,7 @@ public class VehicleAdminClient {
     @Value("${lexor.services.vehicle-service-url:http://localhost:8087}")
     private String vehicleServiceUrl;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
     public Map<String, Object> getVehicleMetrics() {

@@ -43,7 +43,7 @@ public class OperationsDashboardServiceImpl implements IOperationsDashboardServi
     @Value("${lexor.services.booking-service-url:http://localhost:8095}")
     private String bookingServiceUrl;
 
-    @Value("${lexor.security.internal-api-key:lexor-internal-service-secret-key-2026}")
+    @Value("${lexor.security.internal-api-key:}")
     private String internalApiKey;
 
     @Override
@@ -70,13 +70,25 @@ public class OperationsDashboardServiceImpl implements IOperationsDashboardServi
         }
 
         // Query upstream clients concurrently/independently
-        Map<String, Object> bookingMetrics = bookingClient.getBookingMetrics(start, end);
-        Map<String, Object> paymentMetrics = paymentClient.getFinancialReconciliation();
+        List<String> unavailableSources = new ArrayList<>();
+
+        BookingAdminClient.BookingMetricsResult bookingMetrics = bookingClient.getBookingMetrics(start, end);
+        if (!bookingMetrics.isAvailable()) {
+            unavailableSources.add("booking-service");
+        }
+
+        PaymentAdminClient.PaymentReconciliationResult paymentMetrics = paymentClient.getFinancialReconciliation();
+        if (!paymentMetrics.isAvailable()) {
+            unavailableSources.add("payment-service");
+        }
+
         Map<String, Object> driverMetrics = driverClient.getDriverMetrics();
         Map<String, Object> vehicleMetrics = vehicleClient.getVehicleMetrics();
         Map<String, Object> userMetrics = userClient.getUserMetrics();
         Map<String, Object> requestMetrics = rideRequestClient.getRideRequestMetrics();
         Map<String, Object> feedbackMetrics = feedbackClient.getFeedbackMetrics();
+
+        boolean isPartialData = !unavailableSources.isEmpty();
 
         // Build metric definitions map for audit clarity
         Map<String, String> definitions = new LinkedHashMap<>();
@@ -84,17 +96,17 @@ public class OperationsDashboardServiceImpl implements IOperationsDashboardServi
         definitions.put("completedRides", "Bookings reaching terminal COMPLETED status.");
         definitions.put("cancelledRides", "Bookings terminated with CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_BY_ADMIN, or EXPIRED.");
         definitions.put("activeRides", "Bookings in CONFIRMED, ACCEPTED, ARRIVED, or IN_PROGRESS status.");
-        definitions.put("grossBookingValue", "Total calculated fare amount of all confirmed platform rides before deductions.");
+        definitions.put("grossBookingValue", "Total calculated fare amount of all confirmed completed platform rides before deductions.");
         definitions.put("successfulPaymentTotals", "Total transaction volume collected by payment-service in COMPLETED state.");
         definitions.put("refundTotals", "Total monetary sum disbursed to riders via payment refund workflows.");
         definitions.put("platformCommissionEarned", "Platform cut retained by LEXOR according to platform commission rates.");
         definitions.put("averageDriverRating", "Decimal-safe average (HALF_UP) of all approved visible ratings from feedback-service.");
 
         return ExecutiveOverviewResponse.builder()
-                .totalRides((Long) bookingMetrics.getOrDefault("totalRides", 0L))
-                .completedRides((Long) bookingMetrics.getOrDefault("completedRides", 0L))
-                .cancelledRides((Long) bookingMetrics.getOrDefault("cancelledRides", 0L))
-                .activeRides((Long) bookingMetrics.getOrDefault("activeRides", 0L))
+                .totalRides(bookingMetrics.getTotalRides())
+                .completedRides(bookingMetrics.getCompletedRides())
+                .cancelledRides(bookingMetrics.getCancelledRides())
+                .activeRides(bookingMetrics.getActiveRides())
                 .pendingRideRequests((Long) requestMetrics.getOrDefault("pendingRideRequests", 0L))
                 .onlineDrivers((Long) driverMetrics.getOrDefault("onlineDrivers", 0L))
                 .inTripDrivers((Long) driverMetrics.getOrDefault("inTripDrivers", 0L))
@@ -102,10 +114,10 @@ public class OperationsDashboardServiceImpl implements IOperationsDashboardServi
                 .registeredRiders((Long) userMetrics.getOrDefault("registeredRiders", 0L))
                 .registeredDrivers((Long) driverMetrics.getOrDefault("totalDrivers", userMetrics.getOrDefault("registeredDrivers", 0L)))
                 .registeredVehicles((Long) vehicleMetrics.getOrDefault("registeredVehicles", 0L))
-                .grossBookingValue((BigDecimal) bookingMetrics.getOrDefault("grossBookingValue", BigDecimal.ZERO))
-                .successfulPaymentTotals((BigDecimal) paymentMetrics.getOrDefault("successfulPaymentTotals", BigDecimal.ZERO))
-                .refundTotals((BigDecimal) paymentMetrics.getOrDefault("refundTotals", BigDecimal.ZERO))
-                .platformCommissionEarned((BigDecimal) paymentMetrics.getOrDefault("platformCommissionEarned", BigDecimal.ZERO))
+                .grossBookingValue(bookingMetrics.getGrossBookingValue())
+                .successfulPaymentTotals(paymentMetrics.getSuccessfulPaymentTotals())
+                .refundTotals(paymentMetrics.getRefundTotals())
+                .platformCommissionEarned(paymentMetrics.getPlatformCommissionEarned())
                 .averageDriverRating((BigDecimal) feedbackMetrics.getOrDefault("averageDriverRating", BigDecimal.valueOf(5.00)))
                 .feedbackReportsAwaitingModeration((Long) feedbackMetrics.getOrDefault("feedbackReportsAwaitingModeration", 0L))
                 .timeRange(rangeKey)
@@ -114,6 +126,8 @@ public class OperationsDashboardServiceImpl implements IOperationsDashboardServi
                 .timeZone(TimeZone.getDefault().getID())
                 .calculatedAt(LocalDateTime.now())
                 .metricDefinitions(definitions)
+                .isPartialData(isPartialData)
+                .unavailableSources(unavailableSources)
                 .build();
     }
 

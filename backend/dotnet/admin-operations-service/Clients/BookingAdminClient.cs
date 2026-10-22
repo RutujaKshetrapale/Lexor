@@ -3,6 +3,16 @@ using AdminOperationsService.DTOs;
 
 namespace AdminOperationsService.Clients;
 
+public record BookingMetricsResult(
+    long TotalRides,
+    long CompletedRides,
+    long CancelledRides,
+    long ActiveRides,
+    decimal GrossBookingValue,
+    bool IsAvailable,
+    string? ErrorMessage
+);
+
 public class BookingAdminClient
 {
     private readonly HttpClient _httpClient;
@@ -16,52 +26,115 @@ public class BookingAdminClient
         _logger = logger;
     }
 
-    public async Task<(long totalRides, long completedRides, long cancelledRides, long activeRides, decimal grossBookingValue)> GetBookingMetricsAsync(DateTime start, DateTime end)
+    private string GetInternalApiKey()
     {
+        return Environment.GetEnvironmentVariable("INTERNAL_SERVICE_API_KEY")
+            ?? Environment.GetEnvironmentVariable("LEXOR_INTERNAL_SERVICE_KEY")
+            ?? _config["InternalService:ApiKey"]
+            ?? string.Empty;
+    }
+
+    public async Task<BookingMetricsResult> GetBookingMetricsAsync(DateTime start, DateTime end)
+    {
+        var baseUrl = _config["Services:BookingServiceUrl"] ?? "http://localhost:8096";
+        var apiKey = GetInternalApiKey();
+
+        var seenBookingUuids = new HashSet<string>();
+        int page = 0;
+        int pageSize = 100;
+        int maxPages = 50; // Safeguard against unbounded pagination
+        long totalCount = 0;
+        long completed = 0;
+        long cancelled = 0;
+        long active = 0;
+        decimal gross = 0;
+
         try
         {
-            var baseUrl = _config["Services:BookingServiceUrl"] ?? "http://localhost:8096";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
-
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/bookings?size=100");
-            request.Headers.Add("X-Internal-Service-Key", apiKey);
-
-            var response = await _httpClient.SendAsync(request);
-            if (response.IsSuccessStatusCode)
+            while (page < maxPages)
             {
+                using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/bookings?page={page}&size={pageSize}");
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                {
+                    request.Headers.Add("X-Internal-Service-Key", apiKey);
+                }
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var response = await _httpClient.SendAsync(request, cts.Token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Booking service returned HTTP {StatusCode} on page {Page}", response.StatusCode, page);
+                    if (page == 0)
+                    {
+                        return new BookingMetricsResult(0, 0, 0, 0, 0, false, $"HTTP {(int)response.StatusCode}");
+                    }
+                    // Partial data scenario on subsequent page
+                    return new BookingMetricsResult(totalCount, completed, cancelled, active, gross, false, $"Interrupted at page {page} with HTTP {(int)response.StatusCode}");
+                }
+
                 var json = await response.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
-                long total = root.TryGetProperty("totalElements", out var te) ? te.GetInt64() : 0;
-                long completed = 0;
-                long cancelled = 0;
-                long active = 0;
-                decimal gross = 0;
-
-                if (root.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
+                if (page == 0 && root.TryGetProperty("totalElements", out var te))
                 {
-                    foreach (var item in content.EnumerateArray())
-                    {
-                        var status = item.TryGetProperty("status", out var st) ? st.GetString() : "";
-                        if (status == "COMPLETED") completed++;
-                        else if (status != null && (status.StartsWith("CANCELLED") || status == "DECLINED_BY_DRIVER" || status == "EXPIRED")) cancelled++;
-                        else if (status == "IN_PROGRESS" || status == "ACCEPTED" || status == "ARRIVED" || status == "CONFIRMED") active++;
+                    totalCount = te.GetInt64();
+                }
 
+                int totalPages = root.TryGetProperty("totalPages", out var tp) ? tp.GetInt32() : 1;
+                bool isLast = root.TryGetProperty("isLast", out var il) && il.GetBoolean();
+                if (!isLast && root.TryGetProperty("last", out var l))
+                {
+                    isLast = l.GetBoolean();
+                }
+
+                if (!root.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array || content.GetArrayLength() == 0)
+                {
+                    break;
+                }
+
+                foreach (var item in content.EnumerateArray())
+                {
+                    var uuid = item.TryGetProperty("bookingUuid", out var bId) ? bId.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(uuid) && !seenBookingUuids.Add(uuid))
+                    {
+                        // Duplicate record detected across pages/retries — skip to prevent double counting
+                        continue;
+                    }
+
+                    var status = item.TryGetProperty("status", out var st) ? st.GetString() : "";
+                    if (status == "COMPLETED")
+                    {
+                        completed++;
+                        // Only terminal completed bookings represent confirmed collected gross value
                         if (item.TryGetProperty("fareAmount", out var fare) && fare.TryGetDecimal(out var fVal)) gross += fVal;
                         else if (item.TryGetProperty("totalFare", out var tf) && tf.TryGetDecimal(out var tfVal)) gross += tfVal;
                     }
+                    else if (status != null && (status.StartsWith("CANCELLED") || status == "DECLINED_BY_DRIVER" || status == "EXPIRED"))
+                    {
+                        cancelled++;
+                    }
+                    else if (status == "IN_PROGRESS" || status == "ACCEPTED" || status == "ARRIVED" || status == "CONFIRMED")
+                    {
+                        active++;
+                    }
                 }
 
-                return (total, completed, cancelled, active, gross);
+                page++;
+                if (isLast || page >= totalPages)
+                {
+                    break;
+                }
             }
+
+            long authoritativeTotal = totalCount > 0 ? totalCount : seenBookingUuids.Count;
+            return new BookingMetricsResult(authoritativeTotal, completed, cancelled, active, gross, true, null);
         }
         catch (Exception ex)
         {
             _logger.LogWarning("Failed to query booking metrics: {Message}", ex.Message);
+            return new BookingMetricsResult(0, 0, 0, 0, 0, false, ex.Message);
         }
-
-        return (0, 0, 0, 0, 0);
     }
 
     public async Task<List<ActiveRideItem>> GetActiveRidesAsync()
@@ -70,12 +143,16 @@ public class BookingAdminClient
         try
         {
             var baseUrl = _config["Services:BookingServiceUrl"] ?? "http://localhost:8096";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+            var apiKey = GetInternalApiKey();
 
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/bookings?status=IN_PROGRESS&size=20");
-            request.Headers.Add("X-Internal-Service-Key", apiKey);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                request.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
 
-            var response = await _httpClient.SendAsync(request);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
@@ -113,12 +190,16 @@ public class BookingAdminClient
         try
         {
             var baseUrl = _config["Services:BookingServiceUrl"] ?? "http://localhost:8096";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+            var apiKey = GetInternalApiKey();
 
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/bookings?size=15");
-            request.Headers.Add("X-Internal-Service-Key", apiKey);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                request.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
 
-            var response = await _httpClient.SendAsync(request);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();

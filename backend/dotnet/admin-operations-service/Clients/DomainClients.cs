@@ -16,17 +16,29 @@ public class DriverAdminClient
         _logger = logger;
     }
 
+    private string GetInternalApiKey()
+    {
+        return Environment.GetEnvironmentVariable("INTERNAL_SERVICE_API_KEY")
+            ?? Environment.GetEnvironmentVariable("LEXOR_INTERNAL_SERVICE_KEY")
+            ?? _config["InternalService:ApiKey"]
+            ?? string.Empty;
+    }
+
     public async Task<(long totalDrivers, long onlineDrivers, long inTripDrivers, long pendingVerifications)> GetDriverMetricsAsync()
     {
         try
         {
             var baseUrl = _config["Services:DriverServiceUrl"] ?? "http://localhost:8086";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+            var apiKey = GetInternalApiKey();
 
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/drivers?size=100");
-            request.Headers.Add("X-Internal-Service-Key", apiKey);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                request.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
 
-            var response = await _httpClient.SendAsync(request);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
@@ -76,17 +88,29 @@ public class VehicleAdminClient
         _logger = logger;
     }
 
+    private string GetInternalApiKey()
+    {
+        return Environment.GetEnvironmentVariable("INTERNAL_SERVICE_API_KEY")
+            ?? Environment.GetEnvironmentVariable("LEXOR_INTERNAL_SERVICE_KEY")
+            ?? _config["InternalService:ApiKey"]
+            ?? string.Empty;
+    }
+
     public async Task<long> GetRegisteredVehiclesCountAsync()
     {
         try
         {
             var baseUrl = _config["Services:VehicleServiceUrl"] ?? "http://localhost:8088";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+            var apiKey = GetInternalApiKey();
 
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/vehicles?size=1");
-            request.Headers.Add("X-Internal-Service-Key", apiKey);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                request.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
 
-            var response = await _httpClient.SendAsync(request);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
@@ -118,6 +142,14 @@ public class UserAdminClient
         _logger = logger;
     }
 
+    private string GetInternalApiKey()
+    {
+        return Environment.GetEnvironmentVariable("INTERNAL_SERVICE_API_KEY")
+            ?? Environment.GetEnvironmentVariable("LEXOR_INTERNAL_SERVICE_KEY")
+            ?? _config["InternalService:ApiKey"]
+            ?? string.Empty;
+    }
+
     public async Task<(long registeredRiders, long registeredDrivers)> GetUserCountsAsync()
     {
         long riders = 0;
@@ -125,11 +157,15 @@ public class UserAdminClient
         try
         {
             var baseUrl = _config["Services:UserServiceUrl"] ?? "http://localhost:8084";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+            var apiKey = GetInternalApiKey();
 
             using var riderReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/users?role=RIDER&size=1");
-            riderReq.Headers.Add("X-Internal-Service-Key", apiKey);
-            var riderResp = await _httpClient.SendAsync(riderReq);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                riderReq.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
+            using var cts1 = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var riderResp = await _httpClient.SendAsync(riderReq, cts1.Token);
             if (riderResp.IsSuccessStatusCode)
             {
                 var json = await riderResp.Content.ReadAsStringAsync();
@@ -138,8 +174,12 @@ public class UserAdminClient
             }
 
             using var driverReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/users?role=DRIVER&size=1");
-            driverReq.Headers.Add("X-Internal-Service-Key", apiKey);
-            var driverResp = await _httpClient.SendAsync(driverReq);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                driverReq.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
+            using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var driverResp = await _httpClient.SendAsync(driverReq, cts2.Token);
             if (driverResp.IsSuccessStatusCode)
             {
                 var json = await driverResp.Content.ReadAsStringAsync();
@@ -168,17 +208,29 @@ public class RideRequestAdminClient
         _logger = logger;
     }
 
+    private string GetInternalApiKey()
+    {
+        return Environment.GetEnvironmentVariable("INTERNAL_SERVICE_API_KEY")
+            ?? Environment.GetEnvironmentVariable("LEXOR_INTERNAL_SERVICE_KEY")
+            ?? _config["InternalService:ApiKey"]
+            ?? string.Empty;
+    }
+
     public async Task<long> GetPendingRequestsCountAsync()
     {
         try
         {
             var baseUrl = _config["Services:RideRequestServiceUrl"] ?? "http://localhost:8092";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+            var apiKey = GetInternalApiKey();
 
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/ride-requests?status=PENDING&size=1");
-            request.Headers.Add("X-Internal-Service-Key", apiKey);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                request.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
 
-            var response = await _httpClient.SendAsync(request);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
@@ -199,12 +251,16 @@ public class RideRequestAdminClient
         try
         {
             var baseUrl = _config["Services:RideRequestServiceUrl"] ?? "http://localhost:8092";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+            var apiKey = GetInternalApiKey();
 
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/ride-requests?status=PENDING&size=20");
-            request.Headers.Add("X-Internal-Service-Key", apiKey);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                request.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
 
-            var response = await _httpClient.SendAsync(request);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
@@ -215,15 +271,14 @@ public class RideRequestAdminClient
                     {
                         items.Add(new PendingRequestItem
                         {
-                            RequestUuid = item.TryGetProperty("requestUuid", out var rqId) ? rqId.GetString() : "",
-                            RiderUuid = item.TryGetProperty("riderUuid", out var ruId) ? ruId.GetString() : "",
-                            RideType = item.TryGetProperty("rideType", out var rt) ? rt.GetString() : "STANDARD",
-                            PickupAddress = item.TryGetProperty("pickupAddress", out var pa) ? pa.GetString() : "",
-                            DropoffAddress = item.TryGetProperty("dropoffAddress", out var da) ? da.GetString() : "",
+                            RequestUuid = item.TryGetProperty("requestUuid", out var ru) ? ru.GetString() ?? "" : (item.TryGetProperty("requestId", out var rId) ? rId.GetString() ?? "" : ""),
+                            RiderUuid = item.TryGetProperty("riderUuid", out var ruId) ? ruId.GetString() ?? "" : "",
+                            RideType = item.TryGetProperty("rideType", out var rt) ? rt.GetString() ?? "STANDARD" : "STANDARD",
+                            PickupAddress = item.TryGetProperty("pickupAddress", out var pa) ? pa.GetString() ?? "" : "",
+                            DropoffAddress = item.TryGetProperty("dropoffAddress", out var da) ? da.GetString() ?? "" : "",
                             Status = "PENDING",
-                            MatchingAttemptsCount = item.TryGetProperty("matchingAttemptsCount", out var mac) ? mac.GetInt32() : 1,
-                            RequestedAt = DateTime.UtcNow.AddMinutes(-2),
-                            WaitingSeconds = 120
+                            WaitingSeconds = item.TryGetProperty("waitingDurationSeconds", out var ws) ? ws.GetInt64() : 0,
+                            RequestedAt = DateTime.UtcNow
                         });
                     }
                 }
@@ -250,6 +305,14 @@ public class FeedbackAdminClient
         _logger = logger;
     }
 
+    private string GetInternalApiKey()
+    {
+        return Environment.GetEnvironmentVariable("INTERNAL_SERVICE_API_KEY")
+            ?? Environment.GetEnvironmentVariable("LEXOR_INTERNAL_SERVICE_KEY")
+            ?? _config["InternalService:ApiKey"]
+            ?? string.Empty;
+    }
+
     public async Task<(decimal averageRating, long pendingReports, Dictionary<string, long> starDistribution)> GetFeedbackMetricsAsync()
     {
         var dist = new Dictionary<string, long> { ["5"] = 0, ["4"] = 0, ["3"] = 0, ["2"] = 0, ["1"] = 0 };
@@ -259,11 +322,15 @@ public class FeedbackAdminClient
         try
         {
             var baseUrl = _config["Services:FeedbackServiceUrl"] ?? "http://localhost:8102";
-            var apiKey = _config["InternalService:ApiKey"] ?? "lexor-internal-service-secret-key-2026";
+            var apiKey = GetInternalApiKey();
 
             using var analyticsReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/feedback/analytics");
-            analyticsReq.Headers.Add("X-Internal-Service-Key", apiKey);
-            var analyticsResp = await _httpClient.SendAsync(analyticsReq);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                analyticsReq.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
+            using var cts1 = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var analyticsResp = await _httpClient.SendAsync(analyticsReq, cts1.Token);
             if (analyticsResp.IsSuccessStatusCode)
             {
                 var json = await analyticsResp.Content.ReadAsStringAsync();
@@ -282,8 +349,12 @@ public class FeedbackAdminClient
             }
 
             using var reportsReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/v1/admin/feedback/reports?status=PENDING&size=1");
-            reportsReq.Headers.Add("X-Internal-Service-Key", apiKey);
-            var reportsResp = await _httpClient.SendAsync(reportsReq);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                reportsReq.Headers.Add("X-Internal-Service-Key", apiKey);
+            }
+            using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var reportsResp = await _httpClient.SendAsync(reportsReq, cts2.Token);
             if (reportsResp.IsSuccessStatusCode)
             {
                 var json = await reportsResp.Content.ReadAsStringAsync();

@@ -15,11 +15,16 @@ builder.WebHost.UseUrls($"http://*:{port}");
 
 // Add Database Context
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? "Server=localhost;Port=3306;Database=lexor_db;User=root;Password=root;CharSet=utf8mb4;";
+    ?? builder.Configuration["DB_URL"];
+
+if (string.IsNullOrWhiteSpace(connectionString) && !builder.Environment.IsEnvironment("Testing"))
+{
+    throw new InvalidOperationException("Missing required database connection string. Set 'ConnectionStrings:DefaultConnection' or 'DB_URL'.");
+}
 
 builder.Services.AddDbContext<AdminOperationsDbContext>(options =>
 {
-    if (builder.Environment.IsEnvironment("Testing"))
+    if (builder.Environment.IsEnvironment("Testing") || string.IsNullOrWhiteSpace(connectionString))
     {
         options.UseInMemoryDatabase("AdminOperationsTestDb");
     }
@@ -47,7 +52,18 @@ builder.Services.AddScoped<IServiceHealthMonitorService, ServiceHealthMonitorSer
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
 
 // Add JWT Authentication
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "lexor-default-jwt-secret-key-32-chars-long!";
+var jwtSecret = builder.Configuration["Jwt:Secret"] ?? builder.Configuration["JWT_SECRET"];
+if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
+{
+    if (builder.Environment.IsEnvironment("Testing"))
+    {
+        jwtSecret = "lexor-testing-jwt-secret-key-must-be-at-least-32-chars!";
+    }
+    else
+    {
+        throw new InvalidOperationException("Missing or insufficiently secure JWT secret. 'Jwt:Secret' or 'JWT_SECRET' must be at least 32 characters.");
+    }
+}
 var key = Encoding.UTF8.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

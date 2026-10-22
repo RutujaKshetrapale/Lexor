@@ -298,4 +298,38 @@ public class AdminOperationsServiceIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
+
+    @Test
+    @DisplayName("Security: Rider token receives 403 Forbidden on administrative endpoints")
+    void testRiderToken_Forbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/operations/overview")
+                        .header("Authorization", riderToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Security: Driver token receives 403 Forbidden on administrative endpoints")
+    void testDriverToken_Forbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/operations/overview")
+                        .header("Authorization", driverToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Security: Unauthenticated request receives 403 Forbidden on administrative endpoints")
+    void testUnauthenticated_Forbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/operations/overview"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Resilience: Executive overview marks partial data when upstream services are unavailable")
+    void testPartialData_WhenUpstreamUnavailable() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/operations/overview")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.isPartialData").value(true))
+                .andExpect(jsonPath("$.data.unavailableSources", hasItem("booking-service")));
+    }
 }

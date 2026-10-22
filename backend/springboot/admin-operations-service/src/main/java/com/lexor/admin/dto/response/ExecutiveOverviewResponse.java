@@ -75,4 +75,9 @@ public class ExecutiveOverviewResponse {
 
     // Metric Definitions and Calculation Rules
     private Map<String, String> metricDefinitions;
+
+    // Upstream Resilience & Partial Data Indicators (Phase 14.1)
+    @com.fasterxml.jackson.annotation.JsonProperty("isPartialData")
+    private boolean isPartialData;
+    private java.util.List<String> unavailableSources;
 }
