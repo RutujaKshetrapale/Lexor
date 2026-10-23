@@ -536,4 +536,93 @@ public class BookingServiceTests
         Assert.Equal(1, result.TotalElements);
         Assert.True(result.First);
     }
+
+    [Fact]
+    public async Task StartTripByDriverAsync_EmptyOtp_ThrowsBadRequest()
+    {
+        var createReq = new CreateBookingDto { RideRequestUuid = "req-uuid-1" };
+        var booking = await _bookingService.CreateBookingAsync("rider-user-uuid-1", createReq);
+        await _bookingService.AcceptBookingByDriverAsync("driver-user-uuid-2", booking.BookingUuid);
+        await _bookingService.ArriveBookingByDriverAsync("driver-user-uuid-2", booking.BookingUuid);
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+            _bookingService.StartTripByDriverAsync("driver-user-uuid-2", booking.BookingUuid, new StartTripDto { Otp = "" }));
+
+        Assert.Contains("OTP is required", ex.Message);
+    }
+
+    [Fact]
+    public async Task StartTripByDriverAsync_ThreeInvalidAttempts_LocksTrip()
+    {
+        var createReq = new CreateBookingDto { RideRequestUuid = "req-uuid-1" };
+        var booking = await _bookingService.CreateBookingAsync("rider-user-uuid-1", createReq);
+        await _bookingService.AcceptBookingByDriverAsync("driver-user-uuid-2", booking.BookingUuid);
+        await _bookingService.ArriveBookingByDriverAsync("driver-user-uuid-2", booking.BookingUuid);
+
+        // Attempt 1: throws BadRequest
+        var ex1 = await Assert.ThrowsAsync<BadRequestException>(() =>
+            _bookingService.StartTripByDriverAsync("driver-user-uuid-2", booking.BookingUuid, new StartTripDto { Otp = "0000" }));
+        Assert.Contains("Attempt 1 of 3", ex1.Message);
+
+        // Attempt 2: throws BadRequest
+        var ex2 = await Assert.ThrowsAsync<BadRequestException>(() =>
+            _bookingService.StartTripByDriverAsync("driver-user-uuid-2", booking.BookingUuid, new StartTripDto { Otp = "0001" }));
+        Assert.Contains("Attempt 2 of 3", ex2.Message);
+
+        // Attempt 3: throws ConflictException (exceeded and locked)
+        var ex3 = await Assert.ThrowsAsync<ConflictException>(() =>
+            _bookingService.StartTripByDriverAsync("driver-user-uuid-2", booking.BookingUuid, new StartTripDto { Otp = "0002" }));
+        Assert.Contains("Maximum attempts exceeded", ex3.Message);
+
+        // Attempt 4 (even with valid OTP): locked
+        var ex4 = await Assert.ThrowsAsync<ConflictException>(() =>
+            _bookingService.StartTripByDriverAsync("driver-user-uuid-2", booking.BookingUuid, new StartTripDto { Otp = booking.Otp }));
+        Assert.Contains("locked for safety", ex4.Message);
+    }
+
+    [Fact]
+    public async Task AcceptBookingByDriverAsync_ConcurrentTwoDrivers_OnlyAssignedWins()
+    {
+        // Register second driver
+        var driver2User = new User
+        {
+            Id = 99,
+            Uuid = "driver-user-uuid-99",
+            Email = "driver2@lexor.com",
+            PasswordHash = "hash",
+            FirstName = "Amit",
+            LastName = "Patel",
+            PhoneNumber = "+919876543299",
+            Role = Role.DRIVER,
+            Status = UserStatus.ACTIVE
+        };
+        _dbContext.Users.Add(driver2User);
+
+        var driver2Profile = new DriverProfile
+        {
+            Id = 99,
+            UserId = 99,
+            User = driver2User,
+            LicenseNumber = "DL-KA-01-2022-099",
+            Status = DriverStatus.ONLINE,
+            Rating = 4.88m,
+            TotalTrips = 40
+        };
+        _dbContext.DriverProfiles.Add(driver2Profile);
+        await _dbContext.SaveChangesAsync();
+
+        var createReq = new CreateBookingDto { RideRequestUuid = "req-uuid-1" };
+        var booking = await _bookingService.CreateBookingAsync("rider-user-uuid-1", createReq);
+
+        // Simulate concurrent attempts to accept: driver-user-uuid-2 (assigned) vs driver-user-uuid-99 (unassigned)
+        var taskAssigned = _bookingService.AcceptBookingByDriverAsync("driver-user-uuid-2", booking.BookingUuid);
+        var taskUnassigned = _bookingService.AcceptBookingByDriverAsync("driver-user-uuid-99", booking.BookingUuid);
+
+        var acceptedBooking = await taskAssigned;
+        Assert.NotNull(acceptedBooking);
+        Assert.Equal(BookingStatus.ACCEPTED, acceptedBooking.Status);
+
+        var unassignedEx = await Assert.ThrowsAsync<ForbiddenException>(async () => await taskUnassigned);
+        Assert.Contains("not the assigned driver", unassignedEx.Message);
+    }
 }

@@ -101,10 +101,16 @@ var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
     ?? Environment.GetEnvironmentVariable("LEXOR_JWT_SECRET")
     ?? builder.Configuration.GetSection($"{JwtSettings.SectionName}:Secret").Value;
 
-if (string.IsNullOrWhiteSpace(jwtSecret))
+if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
 {
-    // Provide development fallback if secret is not set via environment variable
-    jwtSecret = "lexor_super_secret_jwt_key_for_development_and_testing_purposes_only_32_bytes";
+    if (builder.Environment.IsEnvironment("Testing"))
+    {
+        jwtSecret = "lexor-testing-jwt-secret-key-must-be-at-least-32-chars!";
+    }
+    else
+    {
+        throw new InvalidOperationException("Missing or insufficiently secure JWT secret. 'JwtSettings:Secret' or 'JWT_SECRET' must be at least 32 characters.");
+    }
 }
 
 builder.Services.PostConfigure<JwtSettings>(settings =>

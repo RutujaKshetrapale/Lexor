@@ -35,7 +35,7 @@ matching:
   max-radius-km: ${MATCHING_MAX_RADIUS_KM:10.0}
   max-location-age-seconds: ${MATCHING_MAX_LOCATION_AGE_SECONDS:300} # 5 minutes
   reservation-ttl-seconds: ${MATCHING_RESERVATION_TTL_SECONDS:120} # 2 minutes
-  internal-api-key: ${MATCHING_INTERNAL_API_KEY:lexor_internal_matching_service_key_2026}
+  internal-api-key: ${MATCHING_INTERNAL_API_KEY:${LEXOR_INTERNAL_SERVICE_KEY:}}
 
 services:
   ride-request-service:

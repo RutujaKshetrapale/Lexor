@@ -35,7 +35,7 @@ booking:
   matching-service-url: ${DRIVER_MATCHING_SERVICE_URL:http://localhost:8093}
   ride-request-service-url: ${RIDE_REQUEST_SERVICE_URL:http://localhost:8091}
   driver-service-url: ${DRIVER_SERVICE_URL:http://localhost:8085}
-  internal-api-key: ${MATCHING_INTERNAL_API_KEY:lexor_internal_matching_service_key_2026}
+  internal-api-key: ${MATCHING_INTERNAL_API_KEY:${LEXOR_INTERNAL_SERVICE_KEY:}}
   otp-expiration-minutes: ${BOOKING_OTP_EXPIRATION_MINUTES:120}
   connect-timeout-ms: ${BOOKING_CONNECT_TIMEOUT_MS:3000}
   read-timeout-ms: ${BOOKING_READ_TIMEOUT_MS:5000}

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using BookingService.Clients;
 using BookingService.Clients.DTOs;
@@ -16,6 +17,9 @@ namespace BookingService.Services;
 
 public class BookingService : IBookingService
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _bookingLocks = new();
+    private static readonly ConcurrentDictionary<string, int> _failedOtpAttempts = new();
+
     private readonly LexorDbContext _dbContext;
     private readonly IRideRequestClient _rideRequestClient;
     private readonly IDriverMatchingClient _driverMatchingClient;
@@ -472,52 +476,76 @@ public class BookingService : IBookingService
     public async Task<BookingResponse> AcceptBookingByDriverAsync(string driverUserUuid, string bookingUuid)
     {
         var driver = await GetDriverOrThrowAsync(driverUserUuid);
-        var booking = await GetBookingOrThrowAsync(bookingUuid);
 
-        if (booking.DriverId != driver.Id)
+        // Atomic lock per booking UUID to prevent concurrent claim race conditions
+        var bookingLock = _bookingLocks.GetOrAdd(bookingUuid, _ => new SemaphoreSlim(1, 1));
+        await bookingLock.WaitAsync();
+        try
         {
-            throw new ForbiddenException("Access denied: You are not the assigned driver for this booking");
-        }
+            var booking = await GetBookingOrThrowAsync(bookingUuid);
 
-        // Idempotency check
-        if (booking.BookingStatus == BookingStatus.ACCEPTED)
-        {
+            if (booking.DriverId != driver.Id)
+            {
+                throw new ForbiddenException("Access denied: You are not the assigned driver for this booking");
+            }
+
+            // Idempotency check
+            if (booking.BookingStatus == BookingStatus.ACCEPTED)
+            {
+                return MapToResponse(booking);
+            }
+
+            if (booking.BookingStatus == BookingStatus.EXPIRED)
+            {
+                throw new ConflictException("This ride offer has expired and can no longer be accepted.");
+            }
+
+            if (!booking.BookingStatus.CanDriverAccept())
+            {
+                throw new ConflictException($"Cannot accept booking in current status: {booking.BookingStatus}");
+            }
+
+            // Check if reservation has expired
+            var reservation = await _dbContext.DriverReservations
+                .FirstOrDefaultAsync(r => r.RideRequestId == booking.RideRequestId &&
+                                          r.DriverId == driver.Id);
+            if (reservation != null && reservation.Status == ReservationStatus.RESERVED && reservation.ExpiresAt <= DateTime.UtcNow)
+            {
+                booking.BookingStatus = BookingStatus.EXPIRED;
+                reservation.Status = ReservationStatus.EXPIRED;
+                await _dbContext.SaveChangesAsync();
+                throw new ConflictException("The dispatch offer reservation for this ride has expired.");
+            }
+
+            booking.BookingStatus = BookingStatus.ACCEPTED;
+            booking.AcceptedAt = DateTime.UtcNow;
+            booking.UpdatedAt = DateTime.UtcNow;
+
+            // Confirm active reservation
+            if (reservation != null && reservation.Status == ReservationStatus.RESERVED)
+            {
+                reservation.Status = ReservationStatus.CONFIRMED;
+                reservation.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _dbContext.SaveChangesAsync();
+
+            await _eventPublisher.PublishAsync(new BookingEvent
+            {
+                EventType = "BOOKING_ACCEPTED",
+                BookingUuid = booking.Uuid,
+                RideRequestUuid = booking.RideRequest.Uuid,
+                RiderUserUuid = booking.Rider.User.Uuid,
+                DriverUserUuid = driver.User.Uuid,
+                Status = booking.BookingStatus.ToString()
+            });
+
             return MapToResponse(booking);
         }
-
-        if (!booking.BookingStatus.CanDriverAccept())
+        finally
         {
-            throw new ConflictException($"Cannot accept booking in current status: {booking.BookingStatus}");
+            bookingLock.Release();
         }
-
-        booking.BookingStatus = BookingStatus.ACCEPTED;
-        booking.AcceptedAt = DateTime.UtcNow;
-        booking.UpdatedAt = DateTime.UtcNow;
-
-        // Confirm active reservation
-        var reservation = await _dbContext.DriverReservations
-            .FirstOrDefaultAsync(r => r.RideRequestId == booking.RideRequestId &&
-                                      r.Status == ReservationStatus.RESERVED &&
-                                      r.ExpiresAt > DateTime.UtcNow);
-        if (reservation != null)
-        {
-            reservation.Status = ReservationStatus.CONFIRMED;
-            reservation.UpdatedAt = DateTime.UtcNow;
-        }
-
-        await _dbContext.SaveChangesAsync();
-
-        await _eventPublisher.PublishAsync(new BookingEvent
-        {
-            EventType = "BOOKING_ACCEPTED",
-            BookingUuid = booking.Uuid,
-            RideRequestUuid = booking.RideRequest.Uuid,
-            RiderUserUuid = booking.Rider.User.Uuid,
-            DriverUserUuid = driver.User.Uuid,
-            Status = booking.BookingStatus.ToString()
-        });
-
-        return MapToResponse(booking);
     }
 
     public async Task<BookingResponse> DeclineBookingByDriverAsync(
@@ -646,15 +674,37 @@ public class BookingService : IBookingService
             throw new ConflictException($"Cannot start trip in current status: {booking.BookingStatus}");
         }
 
-        // Validate OTP if provided
-        if (!string.IsNullOrWhiteSpace(request?.Otp))
+        // 1. Mandatory OTP Check: Trip cannot start without rider's 4-digit OTP
+        if (string.IsNullOrWhiteSpace(request?.Otp))
         {
-            if (!BCrypt.Net.BCrypt.Verify(request.Otp.Trim(), booking.OtpHash))
-            {
-                throw new BadRequestException("Invalid OTP provided. Please request the 4-digit code from the rider.");
-            }
-            booking.OtpVerifiedAt = DateTime.UtcNow;
+            throw new BadRequestException("OTP is required to start the trip. Please request the 4-digit code from the rider.");
         }
+
+        // 2. Lockout check: Max 3 failed attempts
+        if (_failedOtpAttempts.TryGetValue(booking.Uuid, out int failedCount) && failedCount >= 3)
+        {
+            throw new ConflictException("Maximum OTP verification attempts (3) exceeded. Trip start is locked for safety. Please contact support.");
+        }
+
+        // 3. Expiration check
+        if (booking.OtpExpiresAt.HasValue && DateTime.UtcNow > booking.OtpExpiresAt.Value)
+        {
+            throw new BadRequestException("The OTP for this trip has expired. Please request a new OTP from the rider.");
+        }
+
+        // 4. Validate OTP via BCrypt
+        if (!BCrypt.Net.BCrypt.Verify(request.Otp.Trim(), booking.OtpHash))
+        {
+            int currentFailures = _failedOtpAttempts.AddOrUpdate(booking.Uuid, 1, (_, old) => old + 1);
+            if (currentFailures >= 3)
+            {
+                throw new ConflictException("Invalid OTP. Maximum attempts exceeded (3/3). Trip start is now locked for safety.");
+            }
+            throw new BadRequestException($"Invalid OTP provided. Please request the 4-digit code from the rider. Attempt {currentFailures} of 3.");
+        }
+
+        _failedOtpAttempts.TryRemove(booking.Uuid, out _);
+        booking.OtpVerifiedAt = DateTime.UtcNow;
 
         booking.BookingStatus = BookingStatus.IN_PROGRESS;
         booking.StartedAt = DateTime.UtcNow;

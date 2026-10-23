@@ -70,8 +70,21 @@ builder.Services.AddControllers()
     });
 
 // Configure JWT Authentication
-var jwtSecret = builder.Configuration.GetValue<string>("Jwt:Secret")
-    ?? "dGhpcy1pcy1hLXZlcnktc2VjdXJlLWtleS1mb3ItbGV4b3Itc21hcnQtbW9iaWxpdHktMjAyNC1qd3QtdG9rZW4tc2VjcmV0LWtleQ==";
+var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? Environment.GetEnvironmentVariable("LEXOR_JWT_SECRET")
+    ?? builder.Configuration.GetValue<string>("Jwt:Secret");
+
+if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
+{
+    if (builder.Environment.IsEnvironment("Testing"))
+    {
+        jwtSecret = "lexor-testing-jwt-secret-key-must-be-at-least-32-chars!";
+    }
+    else
+    {
+        throw new InvalidOperationException("Missing or insufficiently secure JWT secret. 'Jwt:Secret' or 'JWT_SECRET' must be at least 32 characters.");
+    }
+}
 var jwtIssuer = builder.Configuration.GetValue<string>("Jwt:Issuer") ?? "LEXOR";
 var jwtAudience = builder.Configuration.GetValue<string>("Jwt:Audience") ?? "LEXOR";
 

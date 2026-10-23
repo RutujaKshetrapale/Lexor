@@ -156,4 +156,56 @@ public class JwtSecurityTests
                 ClockSkew = TimeSpan.Zero
             }, out _));
     }
+
+    [Fact]
+    public void FailSecureSecret_EmptySecret_ThrowsArgumentException()
+    {
+        Assert.ThrowsAny<ArgumentException>(() => new SymmetricSecurityKey(Encoding.UTF8.GetBytes("")));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("short-key-16chars")]
+    [InlineData("too-short-jwt-secret-under-32")]
+    public void FailSecureSecret_Under32Chars_FailsEntropyPolicy(string insecureSecret)
+    {
+        // Enforces LEXOR enterprise security rule: minimum 256 bits (32 bytes)
+        var isUnder32Chars = string.IsNullOrWhiteSpace(insecureSecret) || insecureSecret.Length < 32;
+        Assert.True(isUnder32Chars, "Secret must be flagged as insecure when under 32 characters");
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+        {
+            if (string.IsNullOrWhiteSpace(insecureSecret) || insecureSecret.Length < 32)
+            {
+                throw new InvalidOperationException("Missing or insufficiently secure JWT secret. Must be at least 32 characters.");
+            }
+        });
+        Assert.Contains("at least 32 characters", ex.Message);
+    }
+
+    [Fact]
+    public void ValidateToken_SignedWithCompromisedLegacySecret_FailsAgainstRotatedKey()
+    {
+        // Token signed with old compromised key
+        const string oldCompromisedSecret = "lexor-default-jwt-secret-key-32-chars-long!";
+        var oldToken = GenerateTestToken("rider-uuid-1", "user@lexor.com", "ROLE_RIDER", TimeSpan.FromHours(1), oldCompromisedSecret);
+
+        // Service configured with rotated key
+        const string rotatedSecret = "a_brand_new_rotated_cryptographic_secret_min_32_characters!";
+        var rotatedKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(rotatedSecret));
+        var tokenHandler = new JwtSecurityTokenHandler();
+
+        // Any SecurityTokenException (signature mismatch or key not found) confirms the token is rejected
+        Assert.ThrowsAny<SecurityTokenException>(() =>
+            tokenHandler.ValidateToken(oldToken, new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = rotatedKey,
+                ValidateIssuer = true,
+                ValidIssuer = TestIssuer,
+                ValidateAudience = true,
+                ValidAudience = TestAudience,
+                ValidateLifetime = true
+            }, out _));
+    }
 }

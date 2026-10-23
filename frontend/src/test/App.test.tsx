@@ -134,7 +134,7 @@ describe('LEXOR Admin Operations Dashboard', () => {
 
   it('renders sidebar brand and operations navigation', () => {
     render(<App />);
-    expect(screen.getByText('LEXOR')).toBeInTheDocument();
+    expect(screen.getAllByText('LEXOR').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Operations HQ')).toBeInTheDocument();
     expect(screen.getAllByText('Executive Overview').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Live Operations')).toBeInTheDocument();

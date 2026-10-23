@@ -29,5 +29,5 @@ public class MatchingProperties {
     /**
      * Shared internal service key for protected inter-service RPC calls.
      */
-    private String internalApiKey = "lexor_internal_matching_service_key_2026";
+    private String internalApiKey = "";
 }

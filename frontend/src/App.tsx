@@ -1,4 +1,12 @@
 import React, { useState } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { GlobalHeader } from './components/GlobalHeader';
+import { RiderAppShell } from './pages/rider/RiderAppShell';
+import { DriverAppShell } from './pages/driver/DriverAppShell';
+import { LoginView } from './pages/auth/LoginView';
+import { RegisterView } from './pages/auth/RegisterView';
+
+// Existing Admin Dashboard Components & Pages (Preserved Exactly)
 import { Sidebar, NavTab } from './components/Sidebar';
 import { TopNavbar } from './components/TopNavbar';
 import { OverviewView } from './pages/OverviewView';
@@ -14,7 +22,12 @@ import { ServiceHealthView } from './pages/ServiceHealthView';
 import { AuditLogsView } from './pages/AuditLogsView';
 import { SettingsView } from './pages/SettingsView';
 
-export const App: React.FC = () => {
+const LexorAppShell: React.FC = () => {
+  const { experience } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
+  // Admin Dashboard State (Preserving all original admin layout states)
   const [currentTab, setCurrentTab] = useState<NavTab>('overview');
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState<number>(0);
@@ -47,42 +60,113 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="app-container">
-      <Sidebar
-        currentTab={currentTab}
-        onSelectTab={(tab) => {
-          setCurrentTab(tab);
-          setMobileOpen(false);
-        }}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-      />
+    <div style={{ minHeight: '100vh', background: '#070b14', color: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+      <GlobalHeader onOpenAuthModal={() => setShowAuthModal(true)} />
 
-      <div className="main-wrapper">
-        <TopNavbar
-          pageTitle={getPageTitle(currentTab)}
-          onToggleMobileMenu={() => setMobileOpen(!mobileOpen)}
-          lastUpdated={new Date().toISOString()}
-          onRefresh={handleManualSync}
-          isRefreshing={isRefreshing}
-        />
+      {/* Experience Body */}
+      <div style={{ flex: 1 }}>
+        {experience === 'rider' && <RiderAppShell />}
 
-        <main key={refreshKey}>
-          {currentTab === 'overview' && <OverviewView />}
-          {currentTab === 'live-ops' && <LiveOpsView />}
-          {currentTab === 'rides' && <RidesBookingsView />}
-          {currentTab === 'riders' && <RidersView />}
-          {currentTab === 'drivers' && <DriversView />}
-          {currentTab === 'vehicles' && <VehiclesView />}
-          {currentTab === 'payments' && <PaymentsRevenueView />}
-          {currentTab === 'feedback' && <FeedbackModerationView />}
-          {currentTab === 'analytics' && <ReportsAnalyticsView />}
-          {currentTab === 'health' && <ServiceHealthView />}
-          {currentTab === 'audit-logs' && <AuditLogsView />}
-          {currentTab === 'settings' && <SettingsView />}
-        </main>
+        {experience === 'driver' && <DriverAppShell />}
+
+        {experience === 'admin' && (
+          <div className="app-container">
+            <Sidebar
+              currentTab={currentTab}
+              onSelectTab={(tab) => {
+                setCurrentTab(tab);
+                setMobileOpen(false);
+              }}
+              mobileOpen={mobileOpen}
+              onCloseMobile={() => setMobileOpen(false)}
+            />
+
+            <div className="main-wrapper">
+              <TopNavbar
+                pageTitle={getPageTitle(currentTab)}
+                onToggleMobileMenu={() => setMobileOpen(!mobileOpen)}
+                lastUpdated={new Date().toISOString()}
+                onRefresh={handleManualSync}
+                isRefreshing={isRefreshing}
+              />
+
+              <main key={refreshKey}>
+                {currentTab === 'overview' && <OverviewView />}
+                {currentTab === 'live-ops' && <LiveOpsView />}
+                {currentTab === 'rides' && <RidesBookingsView />}
+                {currentTab === 'riders' && <RidersView />}
+                {currentTab === 'drivers' && <DriversView />}
+                {currentTab === 'vehicles' && <VehiclesView />}
+                {currentTab === 'payments' && <PaymentsRevenueView />}
+                {currentTab === 'feedback' && <FeedbackModerationView />}
+                {currentTab === 'analytics' && <ReportsAnalyticsView />}
+                {currentTab === 'health' && <ServiceHealthView />}
+                {currentTab === 'audit-logs' && <AuditLogsView />}
+                {currentTab === 'settings' && <SettingsView />}
+              </main>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Auth Modal Overlay */}
+      {showAuthModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(7, 11, 20, 0.85)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+        >
+          <div style={{ position: 'relative', width: '100%', maxWidth: 440 }}>
+            <button
+              onClick={() => setShowAuthModal(false)}
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                background: '#1e293b',
+                border: '1px solid #334155',
+                color: '#cbd5e1',
+                borderRadius: 8,
+                padding: '6px 10px',
+                cursor: 'pointer',
+                zIndex: 10,
+                fontSize: '0.9rem'
+              }}
+              aria-label="Close authentication modal"
+            >
+              ✕
+            </button>
+            {authMode === 'login' ? (
+              <LoginView
+                onSuccess={() => setShowAuthModal(false)}
+                onNavigateRegister={() => setAuthMode('register')}
+              />
+            ) : (
+              <RegisterView
+                onSuccess={() => setShowAuthModal(false)}
+                onNavigateLogin={() => setAuthMode('login')}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <LexorAppShell />
+    </AuthProvider>
   );
 };
 
