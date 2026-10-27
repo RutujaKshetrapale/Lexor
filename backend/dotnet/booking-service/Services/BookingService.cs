@@ -321,8 +321,35 @@ public class BookingService : IBookingService
             }
         });
 
+        // 10. Dispatch 4-digit ride OTP via Notification Service (non-fatal if provider unavailable)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+                if (!string.IsNullOrWhiteSpace(_bookingSettings.InternalApiKey))
+                {
+                    client.DefaultRequestHeaders.Add("X-Internal-Service-Key", _bookingSettings.InternalApiKey);
+                }
+                var otpPayload = new
+                {
+                    recipientPhone = rider.User?.PhoneNumber ?? string.Empty,
+                    recipientEmail = rider.User?.Email ?? string.Empty,
+                    otpCode = plainOtp,
+                    expirySeconds = _bookingSettings.OtpExpirationMinutes * 60
+                };
+                var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(otpPayload), System.Text.Encoding.UTF8, "application/json");
+                await client.PostAsync($"{_bookingSettings.NotificationServiceUrl}/api/v1/internal/notifications/otp", content);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Non-fatal: Failed to dispatch OTP SMS for booking {BookingUuid}", booking.Uuid);
+            }
+        });
+
         return MapToResponse(booking, plainOtp);
     }
+
 
     public async Task<PageResponse<BookingResponse>> GetMyBookingsAsync(
         string riderUserUuid,

@@ -94,6 +94,8 @@ class BookingServiceTest {
     @Mock
     private DriverMatchingClient driverMatchingClient;
     @Mock
+    private com.lexor.booking.client.NotificationClient notificationClient;
+    @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
     private IEventPublisher eventPublisher;
@@ -421,6 +423,74 @@ class BookingServiceTest {
         assertThrows(BadRequestException.class, () ->
                 bookingService.startTripByDriver(driverPrincipal, booking.getUuid(), startReq)
         );
+    }
+
+    @Test
+    @DisplayName("Driver start trip: Fails when OTP is missing or blank")
+    void testDriverStartTrip_MissingOtp_ThrowsBadRequest() {
+        booking.setBookingStatus(BookingStatus.ARRIVED);
+        when(driverProfileRepository.findByUserUuid(driverPrincipal.getUuid())).thenReturn(Optional.of(driverProfile));
+        when(bookingRepository.findByUuid(booking.getUuid())).thenReturn(Optional.of(booking));
+
+        StartTripRequest startReq = StartTripRequest.builder().otp("").build();
+        assertThrows(BadRequestException.class, () ->
+                bookingService.startTripByDriver(driverPrincipal, booking.getUuid(), startReq)
+        );
+    }
+
+    @Test
+    @DisplayName("Driver start trip: Fails when OTP has expired")
+    void testDriverStartTrip_ExpiredOtp_ThrowsBadRequest() {
+        booking.setBookingStatus(BookingStatus.ARRIVED);
+        booking.setOtpExpiresAt(java.time.LocalDateTime.now().minusMinutes(5));
+        when(driverProfileRepository.findByUserUuid(driverPrincipal.getUuid())).thenReturn(Optional.of(driverProfile));
+        when(bookingRepository.findByUuid(booking.getUuid())).thenReturn(Optional.of(booking));
+
+        StartTripRequest startReq = StartTripRequest.builder().otp("4829").build();
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                bookingService.startTripByDriver(driverPrincipal, booking.getUuid(), startReq)
+        );
+        assertTrue(ex.getMessage().contains("expired"));
+    }
+
+    @Test
+    @DisplayName("Driver start trip: Enforces lockout after 3 consecutive invalid OTP attempts")
+    void testDriverStartTrip_ExcessiveAttempts_LocksTrip() {
+        Booking freshBooking = Booking.builder()
+                .id(999L)
+                .uuid("test-lockout-booking-" + java.util.UUID.randomUUID())
+                .rider(riderProfile)
+                .driver(driverProfile)
+                .vehicle(vehicle)
+                .rideType(rideType)
+                .bookingStatus(BookingStatus.ARRIVED)
+                .otpHash("$2a$12$sampleHashedOtp")
+                .otpExpiresAt(java.time.LocalDateTime.now().plusHours(1))
+                .build();
+
+        when(driverProfileRepository.findByUserUuid(driverPrincipal.getUuid())).thenReturn(Optional.of(driverProfile));
+        when(bookingRepository.findByUuid(freshBooking.getUuid())).thenReturn(Optional.of(freshBooking));
+        when(passwordEncoder.matches("1111", freshBooking.getOtpHash())).thenReturn(false);
+
+        StartTripRequest startReq = StartTripRequest.builder().otp("1111").build();
+
+        // Attempt 1: fails
+        assertThrows(BadRequestException.class, () ->
+                bookingService.startTripByDriver(driverPrincipal, freshBooking.getUuid(), startReq));
+
+        // Attempt 2: fails
+        assertThrows(BadRequestException.class, () ->
+                bookingService.startTripByDriver(driverPrincipal, freshBooking.getUuid(), startReq));
+
+        // Attempt 3: fails with lockout (ConflictException)
+        ConflictException ex = assertThrows(ConflictException.class, () ->
+                bookingService.startTripByDriver(driverPrincipal, freshBooking.getUuid(), startReq));
+        assertTrue(ex.getMessage().contains("Maximum attempts exceeded"));
+
+        // Attempt 4: immediately locked out
+        ConflictException ex2 = assertThrows(ConflictException.class, () ->
+                bookingService.startTripByDriver(driverPrincipal, freshBooking.getUuid(), startReq));
+        assertTrue(ex2.getMessage().contains("locked"));
     }
 
     @Test

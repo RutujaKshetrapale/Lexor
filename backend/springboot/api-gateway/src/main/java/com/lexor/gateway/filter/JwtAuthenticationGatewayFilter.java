@@ -159,6 +159,16 @@ public class JwtAuthenticationGatewayFilter implements WebFilter, Ordered {
             return true;
         }
 
+        // Payment provider webhook callbacks (authenticated via HMAC signature header, not JWT)
+        if (path.startsWith("/api/v1/payments/webhooks/")) {
+            return true;
+        }
+
+        // Public payment methods discovery
+        if (path.equals("/api/v1/payments/methods") && HttpMethod.GET.equals(method)) {
+            return true;
+        }
+
         return false;
     }
 

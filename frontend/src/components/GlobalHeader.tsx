@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Navigation, User, Car, BarChart3, LogOut, ChevronDown, CheckCircle2, Shield } from 'lucide-react';
+import { Navigation, User, Car, BarChart3, LogOut, ChevronDown, CheckCircle2, Shield, Bell, BellOff, BellRing } from 'lucide-react';
+import { pushNotificationService } from '../services/pushNotificationService';
 
 interface GlobalHeaderProps {
   onOpenAuthModal?: () => void;
@@ -9,6 +10,21 @@ interface GlobalHeaderProps {
 export const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onOpenAuthModal }) => {
   const { user, isAuthenticated, experience, setExperience, switchDemoRole, logout } = useAuth();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState<boolean>(false);
+  const [pushStatus, setPushStatus] = useState(pushNotificationService.getStatus());
+  const [pushNotice, setPushNotice] = useState<string | null>(null);
+
+  const handleTogglePush = async () => {
+    if (pushStatus.isEnabled) {
+      await pushNotificationService.disableNotifications();
+      setPushStatus(pushNotificationService.getStatus());
+      setPushNotice('Push notifications disabled.');
+    } else {
+      const res = await pushNotificationService.enableNotifications();
+      setPushStatus(pushNotificationService.getStatus());
+      setPushNotice(res.message);
+    }
+    setTimeout(() => setPushNotice(null), 3500);
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#080d18]/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-2.5 transition-all">
@@ -73,8 +89,47 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onOpenAuthModal }) =
           </button>
         </nav>
 
-        {/* User Profile & Demo Role Switcher */}
-        <div className="flex items-center gap-3">
+        {/* Push Notification Toggle & User Profile */}
+        <div className="flex items-center gap-2">
+          {/* Push Notification Toggle */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={handleTogglePush}
+              title={pushStatus.isEnabled ? 'Push notifications active (Click to disable)' : 'Enable push notifications'}
+              className={`p-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm ${
+                pushStatus.isEnabled
+                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20'
+                  : pushStatus.permission === 'denied'
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
+                  : 'bg-slate-900/80 border-slate-700/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              {pushStatus.isEnabled ? (
+                <>
+                  <BellRing className="w-4 h-4 text-emerald-400 animate-pulse" />
+                  <span className="hidden md:inline text-[11px]">Push On</span>
+                </>
+              ) : pushStatus.permission === 'denied' ? (
+                <>
+                  <BellOff className="w-4 h-4 text-rose-400" />
+                  <span className="hidden md:inline text-[11px]">Blocked</span>
+                </>
+              ) : (
+                <>
+                  <Bell className="w-4 h-4 text-slate-400" />
+                  <span className="hidden md:inline text-[11px]">Push</span>
+                </>
+              )}
+            </button>
+
+            {pushNotice && (
+              <div className="absolute right-0 top-11 z-50 px-3 py-1.5 rounded-xl bg-slate-900 border border-indigo-500/40 text-indigo-200 text-xs shadow-xl whitespace-nowrap animate-fade-in">
+                {pushNotice}
+              </div>
+            )}
+          </div>
+
           {isAuthenticated && user ? (
             <div className="relative">
               <button

@@ -1,5 +1,7 @@
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using PaymentService.Configuration;
 using PaymentService.Enums;
@@ -21,6 +23,7 @@ public interface IPaymentProvider
 
 public class RazorpayPaymentProvider : IPaymentProvider
 {
+    private static readonly HttpClient _httpClient = new();
     private readonly PaymentSettings _settings;
     private readonly ILogger<RazorpayPaymentProvider> _logger;
 
@@ -32,6 +35,19 @@ public class RazorpayPaymentProvider : IPaymentProvider
 
     public string ProviderName => "RAZORPAY";
 
+    public bool IsLiveMode
+    {
+        get
+        {
+            var rzp = _settings.Razorpay;
+            return !string.IsNullOrWhiteSpace(rzp?.KeyId) &&
+                   !string.IsNullOrWhiteSpace(rzp?.KeySecret) &&
+                   !rzp.KeyId.Contains("sample", StringComparison.OrdinalIgnoreCase) &&
+                   !rzp.KeyId.StartsWith("your_", StringComparison.OrdinalIgnoreCase) &&
+                   !rzp.KeySecret.Contains("sample", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     public CreateOrderResult CreateOrder(string bookingUuid, decimal amount, string currency, PaymentMethod method)
     {
         if (amount <= 0)
@@ -40,7 +56,18 @@ public class RazorpayPaymentProvider : IPaymentProvider
         }
 
         var amountPaise = (long)Math.Round(amount * 100, MidpointRounding.AwayFromZero);
-        var orderId = "order_" + Guid.NewGuid().ToString("N")[..14];
+        string orderId;
+
+        if (IsLiveMode)
+        {
+            orderId = CreateLiveOrder(bookingUuid, amountPaise, string.IsNullOrWhiteSpace(currency) ? "INR" : currency);
+        }
+        else
+        {
+            orderId = "order_" + Guid.NewGuid().ToString("N")[..14];
+            _logger.LogInformation("Created Razorpay sandbox order {OrderId} for booking {BookingUuid} with method {Method}",
+                orderId, bookingUuid, method);
+        }
 
         var checkoutPayload = new Dictionary<string, object>
         {
@@ -78,8 +105,6 @@ public class RazorpayPaymentProvider : IPaymentProvider
             };
         }
 
-        _logger.LogInformation("Created Razorpay sandbox order {OrderId} for booking {BookingUuid} with method {Method}", orderId, bookingUuid, method);
-
         return new CreateOrderResult
         {
             OrderId = orderId,
@@ -89,6 +114,50 @@ public class RazorpayPaymentProvider : IPaymentProvider
             ProviderKeyId = _settings.Razorpay.KeyId,
             CheckoutPayload = checkoutPayload
         };
+    }
+
+    private string CreateLiveOrder(string bookingUuid, long amountPaise, string currency)
+    {
+        try
+        {
+            var keyId = _settings.Razorpay.KeyId;
+            var keySecret = _settings.Razorpay.KeySecret;
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.razorpay.com/v1/orders");
+            var authBytes = Encoding.ASCII.GetBytes($"{keyId}:{keySecret}");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
+
+            var payload = new
+            {
+                amount = amountPaise,
+                currency = currency,
+                receipt = "rcpt_" + (bookingUuid.Length > 30 ? bookingUuid[..30] : bookingUuid),
+                payment_capture = 1,
+                notes = new Dictionary<string, string>
+                {
+                    { "bookingUuid", bookingUuid },
+                    { "platform", "LEXOR" }
+                }
+            };
+            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+            var response = _httpClient.Send(request);
+            if (response.IsSuccessStatusCode)
+            {
+                using var doc = JsonDocument.Parse(response.Content.ReadAsStream());
+                if (doc.RootElement.TryGetProperty("id", out var idProp))
+                {
+                    var id = idProp.GetString()!;
+                    _logger.LogInformation("Successfully created live Razorpay order {OrderId} for booking {BookingUuid}", id, bookingUuid);
+                    return id;
+                }
+            }
+            throw new PaymentGatewayException($"Razorpay gateway order creation returned status {response.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create live Razorpay order for booking {BookingUuid}", bookingUuid);
+            throw new PaymentGatewayException("Payment gateway unreachable: " + ex.Message, ex);
+        }
     }
 
     public bool VerifyCheckoutSignature(string orderId, string paymentId, string signature)

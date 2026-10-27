@@ -86,9 +86,12 @@ public class BookingServiceImpl implements BookingService {
 
     private final RideRequestClient rideRequestClient;
     private final DriverMatchingClient driverMatchingClient;
+    private final com.lexor.booking.client.NotificationClient notificationClient;
     private final PasswordEncoder passwordEncoder;
     private final IEventPublisher eventPublisher;
     private final BookingProperties bookingProperties;
+
+    private static final Map<String, Integer> failedOtpAttempts = new java.util.concurrent.ConcurrentHashMap<>();
 
     // =========================================================================
     // RIDER OPERATIONS
@@ -295,6 +298,16 @@ public class BookingServiceImpl implements BookingService {
                 "vehicleId", matchedVehicle.getId(),
                 "status", savedBooking.getBookingStatus().name()
         ));
+
+        // 10. Dispatch 4-digit ride-start OTP via SMS asynchronously (non-fatal if provider unavailable)
+        try {
+            String riderPhone = rider.getUser() != null ? rider.getUser().getPhoneNumber() : null;
+            String riderEmail = rider.getUser() != null ? rider.getUser().getEmail() : null;
+            int expirySec = bookingProperties.getOtpExpirationMinutes() * 60;
+            notificationClient.dispatchOtp(riderPhone, riderEmail, plainOtp, expirySec);
+        } catch (Exception ex) {
+            logger.warn("Non-fatal: could not dispatch OTP notification for booking {}: {}", savedBooking.getUuid(), ex.getMessage());
+        }
 
         // Return booking with plain OTP so the rider can communicate it to the driver
         return mapToResponse(savedBooking, plainOtp);
@@ -552,13 +565,34 @@ public class BookingServiceImpl implements BookingService {
             throw new ConflictException("Cannot start trip in current status: " + booking.getBookingStatus());
         }
 
-        // OTP verification if provided
-        if (request != null && StringUtils.hasText(request.getOtp())) {
-            if (!passwordEncoder.matches(request.getOtp().trim(), booking.getOtpHash())) {
-                throw new BadRequestException("Invalid OTP provided. Please request the 4-digit code from the rider.");
-            }
-            booking.setOtpVerifiedAt(LocalDateTime.now());
+        // 1. Mandatory OTP Check: Driver cannot start trip without the rider's 4-digit OTP
+        if (request == null || !StringUtils.hasText(request.getOtp())) {
+            throw new BadRequestException("OTP is required to start the trip. Please request the 4-digit code from the rider.");
         }
+
+        // 2. Lockout Check: Max 3 failed attempts to prevent brute-force attacks
+        if (failedOtpAttempts.getOrDefault(booking.getUuid(), 0) >= 3) {
+            throw new ConflictException("Maximum OTP verification attempts (3) exceeded. Trip start is locked for safety. Please contact support.");
+        }
+
+        // 3. Expiration Check
+        if (booking.getOtpExpiresAt() != null && LocalDateTime.now().isAfter(booking.getOtpExpiresAt())) {
+            throw new BadRequestException("The OTP for this trip has expired. Please request a new OTP from the rider.");
+        }
+
+        // 4. Validate OTP via PasswordEncoder (BCrypt)
+        if (!passwordEncoder.matches(request.getOtp().trim(), booking.getOtpHash())) {
+            int currentFailures = failedOtpAttempts.compute(booking.getUuid(), (k, v) -> v == null ? 1 : v + 1);
+            if (currentFailures >= 3) {
+                throw new ConflictException("Invalid OTP. Maximum attempts exceeded (3/3). Trip start is now locked for safety.");
+            }
+            throw new BadRequestException("Invalid OTP provided. Please request the 4-digit code from the rider. Attempt " + currentFailures + " of 3.");
+        }
+
+        // 5. Successful verification: clear failed counter and record verification timestamp
+        failedOtpAttempts.remove(booking.getUuid());
+        booking.setOtpVerifiedAt(LocalDateTime.now());
+        logger.info("OTP verified successfully for booking {}", booking.getUuid());
 
         booking.setBookingStatus(BookingStatus.IN_PROGRESS);
         booking.setStartedAt(LocalDateTime.now());

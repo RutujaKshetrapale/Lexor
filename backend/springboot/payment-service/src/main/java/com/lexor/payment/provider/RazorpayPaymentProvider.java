@@ -10,7 +10,15 @@ import com.lexor.payment.provider.dto.RefundResult;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestTemplate;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -27,12 +35,25 @@ import java.util.UUID;
 public class RazorpayPaymentProvider implements IPaymentProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(RazorpayPaymentProvider.class);
+    private static final String RAZORPAY_API_BASE = "https://api.razorpay.com/v1";
 
     private final PaymentProperties paymentProperties;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     @Override
     public String getProviderName() {
         return "RAZORPAY";
+    }
+
+    public boolean isLiveMode() {
+        String keyId = paymentProperties.getRazorpay().getKeyId();
+        String keySecret = paymentProperties.getRazorpay().getKeySecret();
+        return StringUtils.hasText(keyId)
+                && StringUtils.hasText(keySecret)
+                && !keyId.contains("sample")
+                && !keyId.startsWith("your_")
+                && !keySecret.contains("sample")
+                && !keySecret.startsWith("your_");
     }
 
     @Override
@@ -42,7 +63,14 @@ public class RazorpayPaymentProvider implements IPaymentProvider {
         }
 
         long amountPaise = amount.multiply(BigDecimal.valueOf(100)).longValue();
-        String orderId = "order_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
+        String orderId;
+
+        if (isLiveMode()) {
+            orderId = createLiveRazorpayOrder(bookingUuid, amountPaise, currency != null ? currency : "INR");
+        } else {
+            orderId = "order_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
+            logger.info("Created Razorpay sandbox order {} for booking {} with method {}", orderId, bookingUuid, method);
+        }
 
         Map<String, Object> checkoutPayload = new HashMap<>();
         checkoutPayload.put("orderId", orderId);
@@ -70,8 +98,6 @@ public class RazorpayPaymentProvider implements IPaymentProvider {
             checkoutPayload.put("netbanking", nbPayload);
         }
 
-        logger.info("Created Razorpay sandbox order {} for booking {} with method {}", orderId, bookingUuid, method);
-
         return CreateOrderResult.builder()
                 .orderId(orderId)
                 .amountPaise(amountPaise)
@@ -80,6 +106,44 @@ public class RazorpayPaymentProvider implements IPaymentProvider {
                 .providerKeyId(paymentProperties.getRazorpay().getKeyId())
                 .checkoutPayload(checkoutPayload)
                 .build();
+    }
+
+    private String createLiveRazorpayOrder(String bookingUuid, long amountPaise, String currency) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBasicAuth(
+                    paymentProperties.getRazorpay().getKeyId(),
+                    paymentProperties.getRazorpay().getKeySecret()
+            );
+
+            Map<String, Object> orderRequest = new HashMap<>();
+            orderRequest.put("amount", amountPaise);
+            orderRequest.put("currency", currency);
+            orderRequest.put("receipt", "rcpt_" + (bookingUuid.length() > 30 ? bookingUuid.substring(0, 30) : bookingUuid));
+            orderRequest.put("payment_capture", 1);
+            orderRequest.put("notes", Map.of("bookingUuid", bookingUuid, "platform", "LEXOR"));
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(orderRequest, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    RAZORPAY_API_BASE + "/orders",
+                    requestEntity,
+                    Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                String orderId = (String) response.getBody().get("id");
+                logger.info("Successfully created live Razorpay order {} for booking {}", orderId, bookingUuid);
+                return orderId;
+            }
+        } catch (HttpStatusCodeException ex) {
+            logger.error("Razorpay order creation rejected [status={}]: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            throw new PaymentGatewayException("Razorpay gateway order creation failed: " + ex.getStatusText(), ex);
+        } catch (Exception ex) {
+            logger.error("Unexpected error connecting to Razorpay orders API: {}", ex.getMessage());
+            throw new PaymentGatewayException("Payment gateway unreachable: " + ex.getMessage(), ex);
+        }
+        throw new PaymentGatewayException("Failed to obtain order from Razorpay gateway");
     }
 
     @Override

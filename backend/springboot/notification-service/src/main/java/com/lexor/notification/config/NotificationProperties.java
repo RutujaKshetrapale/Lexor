@@ -56,12 +56,23 @@ public class NotificationProperties {
     @Setter
     public static class Sms {
         private boolean enabled = true;
-        private String provider = "TWILIO_SANDBOX";
+        private String provider = "MSG91_SANDBOX";
+        private Msg91 msg91 = new Msg91();
         private String accountSid = "AC_test_lexor_sid";
         private String authToken = "auth_token_test_sandbox";
         private String fromNumber = "+15005550006";
         private int rateLimitPerHour = 5;
     }
+
+    @Getter
+    @Setter
+    public static class Msg91 {
+        private String authKey;
+        private String templateId;
+        private String senderId = "LEXORS";
+        private int otpExpiryMinutes = 5;
+    }
+
 
     @Getter
     @Setter

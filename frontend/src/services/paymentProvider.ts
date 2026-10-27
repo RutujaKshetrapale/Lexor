@@ -1,7 +1,7 @@
 /**
  * LEXOR Payment Gateway Integration Boundary & Tokenized Checkout Handler
  *
- * Implements tokenized UPI and Card checkout via Razorpay/Cashfree SDKs
+ * Implements tokenized UPI and Card checkout via Razorpay SDK
  * without exposing raw card data or merchant secrets to the browser.
  *
  * All financial state is reconciled authoritatively via backend webhooks
@@ -43,11 +43,12 @@ declare global {
 class PaymentProviderService {
   private isConfigured: boolean = false;
   private keyId: string = '';
+  private scriptLoadingPromise: Promise<boolean> | null = null;
 
   constructor() {
     const env = (import.meta as any).env || {};
-    this.keyId = env.VITE_RAZORPAY_KEY_ID || '';
-    this.isConfigured = Boolean(this.keyId && this.keyId.trim() !== '');
+    this.keyId = (env.VITE_RAZORPAY_KEY_ID || '').trim();
+    this.isConfigured = Boolean(this.keyId && !this.keyId.startsWith('your_'));
   }
 
   public isLiveGatewayConfigured(): boolean {
@@ -63,10 +64,48 @@ class PaymentProviderService {
   }
 
   /**
+   * Dynamically loads Razorpay checkout script
+   */
+  public async loadRazorpayScript(): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+    if (typeof window.Razorpay !== 'undefined') return true;
+
+    if (this.scriptLoadingPromise) {
+      return this.scriptLoadingPromise;
+    }
+
+    this.scriptLoadingPromise = new Promise<boolean>((resolve) => {
+      const scriptId = 'razorpay-checkout-sdk';
+      if (document.getElementById(scriptId)) {
+        resolve(typeof window.Razorpay !== 'undefined');
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => {
+        console.warn('Razorpay checkout script failed to load, falling back to sandbox mode.');
+        resolve(false);
+      };
+      document.head.appendChild(script);
+    });
+
+    return this.scriptLoadingPromise;
+  }
+
+  /**
    * Launch tokenized hosted checkout modal
    * Falls back to sandbox simulation boundary if no merchant key is provided in .env
    */
   public async openCheckout(intent: PaymentIntentDetails): Promise<CheckoutResult> {
+    // Attempt dynamic script loading if key is configured
+    if (this.isConfigured && typeof window.Razorpay === 'undefined') {
+      await this.loadRazorpayScript();
+    }
+
     // 1. If real Razorpay SDK & client key exist in window
     if (this.isConfigured && typeof window.Razorpay !== 'undefined') {
       return new Promise<CheckoutResult>((resolve) => {
@@ -94,7 +133,7 @@ class PaymentProviderService {
               providerSignature: response.razorpay_signature,
               isTestMode: false,
               status: 'SUCCEEDED',
-              message: 'Tokenized checkout authorized. Signature submitted for verification.'
+              message: 'Tokenized checkout authorized. Signature submitted for authoritative verification.'
             });
           },
           modal: {
@@ -117,7 +156,7 @@ class PaymentProviderService {
 
     // 2. Safe Sandbox Boundary / Mock Gateway (Explicitly labeled)
     return new Promise<CheckoutResult>((resolve) => {
-      // Simulate quick asynchronous gateway roundtrip
+      // Simulate asynchronous gateway roundtrip
       setTimeout(() => {
         const mockProviderPaymentId = `pay_sim_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         resolve({

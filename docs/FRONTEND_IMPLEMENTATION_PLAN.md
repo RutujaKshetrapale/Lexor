@@ -151,3 +151,38 @@ graph TD
   - Frontend: 0 errors on production build (`npm run build`).
   - Backend: 161 passing .NET unit/integration tests (`dotnet test`).
 
+---
+
+### Milestone 8 — Phase 17 External Providers Integration (SMS, Push, Payments, Real Maps)
+- **Goal**: Connect genuine external providers (MSG91, Twilio, Firebase Cloud Messaging, Razorpay, Google Maps Platform) across Rider, Driver, and Admin portals while preserving local testability and zero-secret frontend isolation.
+- **Completed Components**:
+  1. **SMS & Ride OTP Delivery**:
+     - MSG91 primary provider with Indian E.164 phone normalization, 60s sliding resend cooldown, masked logging without sensitive plaintext, and extensible Twilio router.
+     - 4-digit ride OTP generated server-side, hashed with BCrypt, locking out after 3 failed attempts.
+     - Driver app trip start enforces mandatory backend OTP verification.
+  2. **Push Notifications**:
+     - Browser push notification toggle in `GlobalHeader.tsx` with user-intent permission prompt.
+     - Background Service Worker (`firebase-messaging-sw.js`) in `frontend/public` for background push receipt and deep-link routing.
+     - Authenticated device token registration and deactivation endpoints (`/api/v1/notifications/devices`).
+  3. **Digital Payments & Razorpay**:
+     - Dynamic script loader for `checkout.js` in `paymentProvider.ts`.
+     - Server-side Razorpay order creation (`/api/v1/orders`) with private credentials kept exclusively on the backend.
+     - Client and webhook HMAC-SHA256 cryptographic signature verification.
+     - API gateway ingress whitelisting for `/api/v1/payments/webhooks/**`.
+     - Admin Payments & Revenue inspection modal with authoritative provider references and audit reconciliation logging.
+  4. **Real Maps & Geolocation**:
+     - Google Maps JavaScript SDK dynamic loader in `mapProvider.ts` with `places` and `geometry` libraries.
+     - Places Autocomplete integration with Nominatim fallback.
+     - Real road route polylines and turn-by-turn directions via Google Directions API with OSRM fallback.
+     - Driver GPS freshness tracking (<30s Live, 30-120s Stale, >120s Lost).
+- **Verification Evidence**:
+  - Frontend: 33 passing vitest tests across 6 test suites (`npm test`).
+  - Frontend: Clean production build with Vite (`npm run build`).
+  - Spring Boot `notification-service`: 5/5 passing unit tests (`Msg91SmsProviderTest.java`).
+  - Spring Boot `booking-service`: 18/18 passing unit tests (`BookingServiceTest.java`).
+  - .NET `notification-service`: 13/13 passing tests (`dotnet test`).
+  - .NET `payment-service`: 13/13 passing tests (`dotnet test`).
+  - .NET `booking-service`: 50/50 passing tests (`dotnet test`).
+  - .NET `api-gateway`: Clean build with 0 warnings, 0 errors.
+
+

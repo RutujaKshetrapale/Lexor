@@ -77,7 +77,13 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  let basePrefix = 'http://localhost';
+  if (typeof window !== 'undefined' && window.location?.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('null')) {
+    basePrefix = window.location.origin;
+  }
+  const fullUrl = endpoint.startsWith('http') ? endpoint : `${basePrefix}${API_BASE}${endpoint}`;
+
+  const res = await fetch(fullUrl, {
     ...options,
     headers
   });
@@ -647,6 +653,50 @@ export const api = {
     return request<void>(`/admin/feedback/reviews/${reviewUuid}/moderate`, {
       method: 'PUT',
       body: JSON.stringify({ moderationStatus, reason })
+    });
+  },
+
+  // ============================================================================
+  // 8. Device Registration & Push Notification Preferences
+  // ============================================================================
+  registerDeviceToken: async (payload: {
+    platform: 'WEB' | 'ANDROID' | 'IOS';
+    fcmToken: string;
+    deviceModel?: string;
+    osVersion?: string;
+    appVersion?: string;
+  }): Promise<{ deviceUuid: string; platform: string; isActive: boolean }> => {
+    return request<{ deviceUuid: string; platform: string; isActive: boolean }>('/notifications/devices', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  listMyDevices: async (): Promise<Array<{ deviceUuid: string; platform: string; maskedToken: string; isActive: boolean; lastActiveAt: string }>> => {
+    return request<Array<{ deviceUuid: string; platform: string; maskedToken: string; isActive: boolean; lastActiveAt: string }>>('/notifications/devices');
+  },
+
+  deactivateDeviceToken: async (deviceUuid: string): Promise<void> => {
+    return request<void>(`/notifications/devices/${deviceUuid}`, {
+      method: 'DELETE'
+    });
+  },
+
+  getMyNotificationPreferences: async (): Promise<any> => {
+    return request<any>('/notifications/preferences');
+  },
+
+  updateMyNotificationPreferences: async (payload: {
+    pushEnabled?: boolean;
+    smsEnabled?: boolean;
+    emailEnabled?: boolean;
+    rideUpdatesEnabled?: boolean;
+    paymentUpdatesEnabled?: boolean;
+    promotionalEnabled?: boolean;
+  }): Promise<any> => {
+    return request<any>('/notifications/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
     });
   }
 };

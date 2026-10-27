@@ -74,9 +74,36 @@ builder.Services.AddAuthorization();
 
 // Register Providers
 builder.Services.AddSingleton<IPushNotificationProvider, FcmPushProvider>();
-builder.Services.AddSingleton<ISmsNotificationProvider, TwilioSmsProvider>();
+builder.Services.AddSingleton<Msg91SmsProvider>();
+builder.Services.AddSingleton<TwilioSmsProvider>();
+builder.Services.AddSingleton<ISmsNotificationProvider, SmsProviderRouter>();
 builder.Services.AddSingleton<IEmailNotificationProvider, SmtpEmailProvider>();
 builder.Services.AddSingleton<IRealtimeNotifier, RealtimeNotifier>();
+
+// Startup Provider Validation in Production Mode
+var notifSettings = builder.Configuration.GetSection("NotificationSettings").Get<NotificationSettings>() ?? new NotificationSettings();
+var envName = builder.Environment.EnvironmentName;
+if (string.Equals(envName, "Production", StringComparison.OrdinalIgnoreCase))
+{
+    if (notifSettings.Sms.Enabled && !notifSettings.Sms.Provider.Contains("SANDBOX", StringComparison.OrdinalIgnoreCase))
+    {
+        if (notifSettings.Sms.Provider.Contains("MSG91", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(notifSettings.Sms.Msg91?.AuthKey))
+            {
+                throw new InvalidOperationException("Production Startup Validation Failed: MSG91_AUTH_KEY is required when MSG91 SMS provider is enabled in Production.");
+            }
+        }
+        else if (notifSettings.Sms.Provider.Contains("TWILIO", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(notifSettings.Sms.AccountSid) || string.IsNullOrWhiteSpace(notifSettings.Sms.AuthToken))
+            {
+                throw new InvalidOperationException("Production Startup Validation Failed: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required in Production.");
+            }
+        }
+    }
+}
+
 
 // Register Application Services
 builder.Services.AddScoped<ITemplateService, TemplateService>();

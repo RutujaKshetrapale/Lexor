@@ -40,7 +40,12 @@ lexor:
         project-id: ${FCM_PROJECT_ID:lexor-mobility-sandbox}
       sms:
         enabled: true
-        provider: ${SMS_PROVIDER:TWILIO_SANDBOX}
+        provider: ${SMS_PROVIDER:MSG91_SANDBOX}
+        msg91:
+          auth-key: ${MSG91_AUTH_KEY:}
+          template-id: ${MSG91_TEMPLATE_ID:}
+          sender-id: ${MSG91_SENDER_ID:LEXORS}
+          otp-expiry-minutes: ${MSG91_OTP_EXPIRY_MINUTES:5}
         account-sid: ${TWILIO_ACCOUNT_SID:AC_test_lexor_sid}
         auth-token: ${TWILIO_AUTH_TOKEN:auth_token_test_sandbox}
         from-number: ${TWILIO_FROM_NUMBER:+15005550006}

@@ -19,12 +19,22 @@ public class FcmSettings
 public class SmsSettings
 {
     public bool Enabled { get; set; } = true;
-    public string Provider { get; set; } = "TWILIO_SANDBOX";
+    public string Provider { get; set; } = "MSG91_SANDBOX";
+    public Msg91Settings Msg91 { get; set; } = new();
     public string AccountSid { get; set; } = "AC_test_lexor_sid";
     public string AuthToken { get; set; } = "auth_token_test_sandbox";
     public string FromNumber { get; set; } = "+15005550006";
     public int RateLimitPerHour { get; set; } = 5;
 }
+
+public class Msg91Settings
+{
+    public string AuthKey { get; set; } = string.Empty;
+    public string TemplateId { get; set; } = string.Empty;
+    public string SenderId { get; set; } = "LEXORS";
+    public int OtpExpiryMinutes { get; set; } = 5;
+}
+
 
 public class EmailSettings
 {

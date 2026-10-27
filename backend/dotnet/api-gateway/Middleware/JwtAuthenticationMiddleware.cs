@@ -156,6 +156,18 @@ public class JwtAuthenticationMiddleware
             return true;
         }
 
+        // Payment provider webhook callbacks (authenticated via HMAC signature header, not JWT)
+        if (path.StartsWith("/api/v1/payments/webhooks/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Public payment methods discovery
+        if (path.Equals("/api/v1/payments/methods", StringComparison.OrdinalIgnoreCase) && HttpMethods.IsGet(method))
+        {
+            return true;
+        }
+
         return false;
     }
 

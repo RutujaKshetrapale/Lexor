@@ -2,8 +2,9 @@
  * LEXOR Map Provider Abstraction & Geolocation Engine
  *
  * Supports:
- * - OpenStreetMap & OSRM (Real road geometry, Nominatim geocoding)
- * - Google Maps / Mapbox (when environment variables are supplied)
+ * - Google Maps Platform (Directions, Geocoding, Places Autocomplete via dynamic loader)
+ * - Mapbox Navigation
+ * - OpenStreetMap & OSRM (Authoritative real road geometry, Nominatim geocoding)
  * - High-precision canvas fallback with explicit [DEMO MODE] disclosure
  * - Device geolocation with permission state detection
  * - Location freshness calculation (<30s fresh, 30s-120s stale, >120s offline)
@@ -40,6 +41,7 @@ export interface MapProviderConfig {
   isDemoMode: boolean;
   label: string;
   attribution: string;
+  isConfigured: boolean;
 }
 
 export interface LocationFreshness {
@@ -51,8 +53,18 @@ export interface LocationFreshness {
   color: 'emerald' | 'amber' | 'rose';
 }
 
+declare global {
+  interface Window {
+    google?: any;
+    initGoogleMapsPromise?: Promise<boolean>;
+  }
+}
+
 class MapProviderService {
   private activeProvider: 'OSM' | 'GOOGLE' | 'MAPBOX' | 'DEMO_CANVAS' = 'OSM';
+  private googleMapsApiKey: string = '';
+  private mapboxToken: string = '';
+  private scriptLoadingPromise: Promise<boolean> | null = null;
 
   constructor() {
     this.detectConfiguredProvider();
@@ -60,9 +72,12 @@ class MapProviderService {
 
   private detectConfiguredProvider(): void {
     const env = (import.meta as any).env || {};
-    if (env.VITE_MAPBOX_TOKEN && env.VITE_MAPBOX_TOKEN.trim() !== '') {
+    this.googleMapsApiKey = (env.VITE_GOOGLE_MAPS_KEY || '').trim();
+    this.mapboxToken = (env.VITE_MAPBOX_TOKEN || '').trim();
+
+    if (this.mapboxToken && !this.mapboxToken.startsWith('your_')) {
       this.activeProvider = 'MAPBOX';
-    } else if (env.VITE_GOOGLE_MAPS_KEY && env.VITE_GOOGLE_MAPS_KEY.trim() !== '') {
+    } else if (this.googleMapsApiKey && !this.googleMapsApiKey.startsWith('your_')) {
       this.activeProvider = 'GOOGLE';
     } else if (env.VITE_DISABLE_LIVE_MAP === 'true') {
       this.activeProvider = 'DEMO_CANVAS';
@@ -80,7 +95,8 @@ class MapProviderService {
           isLiveProvider: true,
           isDemoMode: false,
           label: 'Google Maps Platform',
-          attribution: 'Map data © Google'
+          attribution: 'Map data © Google',
+          isConfigured: Boolean(this.googleMapsApiKey && !this.googleMapsApiKey.startsWith('your_'))
         };
       case 'MAPBOX':
         return {
@@ -88,7 +104,8 @@ class MapProviderService {
           isLiveProvider: true,
           isDemoMode: false,
           label: 'Mapbox Navigation',
-          attribution: '© Mapbox © OpenStreetMap'
+          attribution: '© Mapbox © OpenStreetMap',
+          isConfigured: Boolean(this.mapboxToken && !this.mapboxToken.startsWith('your_'))
         };
       case 'OSM':
         return {
@@ -96,7 +113,8 @@ class MapProviderService {
           isLiveProvider: true,
           isDemoMode: false,
           label: 'OpenStreetMap & OSRM Engine',
-          attribution: '© OpenStreetMap contributors, OSRM'
+          attribution: '© OpenStreetMap contributors, OSRM',
+          isConfigured: true
         };
       case 'DEMO_CANVAS':
       default:
@@ -105,7 +123,8 @@ class MapProviderService {
           isLiveProvider: false,
           isDemoMode: true,
           label: 'Demo Mode (Simulated Canvas)',
-          attribution: 'LEXOR Simulated Navigation Mesh'
+          attribution: 'LEXOR Simulated Navigation Mesh',
+          isConfigured: false
         };
     }
   }
@@ -116,6 +135,43 @@ class MapProviderService {
     } else {
       this.detectConfiguredProvider();
     }
+  }
+
+  /**
+   * Dynamically loads Google Maps JavaScript SDK when configured
+   */
+  public async loadGoogleMapsScript(): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+    if (window.google?.maps) return true;
+    if (!this.googleMapsApiKey || this.googleMapsApiKey.startsWith('your_')) return false;
+
+    if (this.scriptLoadingPromise) {
+      return this.scriptLoadingPromise;
+    }
+
+    this.scriptLoadingPromise = new Promise<boolean>((resolve) => {
+      const scriptId = 'lexor-google-maps-sdk';
+      if (document.getElementById(scriptId)) {
+        resolve(Boolean(window.google?.maps));
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+        this.googleMapsApiKey
+      )}&libraries=places,geometry`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => {
+        console.warn('Failed to load Google Maps SDK, falling back to OSRM / OpenStreetMap');
+        resolve(false);
+      };
+      document.head.appendChild(script);
+    });
+
+    return this.scriptLoadingPromise;
   }
 
   /**
@@ -168,11 +224,59 @@ class MapProviderService {
   }
 
   /**
-   * Geocode a search query to coordinates using Nominatim or provider
+   * Geocode a search query to coordinates using Google Places or Nominatim
    */
   public async searchPlace(query: string): Promise<GeocodeResult[]> {
     if (!query || query.trim().length < 2) return [];
 
+    // 1. Try Google Maps Places Autocomplete if active
+    if (this.activeProvider === 'GOOGLE' && window.google?.maps?.places) {
+      try {
+        const service = new window.google.maps.places.AutocompleteService();
+        const predictions = await new Promise<any[]>((resolve) => {
+          service.getPlacePredictions(
+            { input: query, componentRestrictions: { country: 'in' } },
+            (results: any[], status: any) => {
+              if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
+                resolve(results);
+              } else {
+                resolve([]);
+              }
+            }
+          );
+        });
+
+        if (predictions && predictions.length > 0) {
+          // Geocode top results
+          const geocoder = new window.google.maps.Geocoder();
+          const geocoded = await Promise.all(
+            predictions.slice(0, 5).map(async (p: any) => {
+              return new Promise<GeocodeResult | null>((res) => {
+                geocoder.geocode({ placeId: p.place_id }, (results: any[], status: any) => {
+                  if (status === 'OK' && results && results[0]) {
+                    const loc = results[0].geometry.location;
+                    res({
+                      address: results[0].formatted_address,
+                      latitude: loc.lat(),
+                      longitude: loc.lng(),
+                      displayPlace: p.structured_formatting?.main_text || results[0].formatted_address
+                    });
+                  } else {
+                    res(null);
+                  }
+                });
+              });
+            })
+          );
+          const validResults = geocoded.filter((g): g is GeocodeResult => g !== null);
+          if (validResults.length > 0) return validResults;
+        }
+      } catch (err) {
+        console.warn('Google Places Autocomplete failed, falling back to Nominatim', err);
+      }
+    }
+
+    // 2. Fallback to OpenStreetMap / Nominatim
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
         query + ', Bengaluru'
@@ -201,6 +305,24 @@ class MapProviderService {
    * Reverse geocode coordinates to human-readable address
    */
   public async reverseGeocode(lat: number, lng: number): Promise<string> {
+    if (this.activeProvider === 'GOOGLE' && window.google?.maps?.Geocoder) {
+      try {
+        const geocoder = new window.google.maps.Geocoder();
+        const res = await new Promise<string>((resolve) => {
+          geocoder.geocode({ location: { lat, lng } }, (results: any[], status: any) => {
+            if (status === 'OK' && results && results[0]) {
+              resolve(results[0].formatted_address);
+            } else {
+              resolve(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+            }
+          });
+        });
+        return res;
+      } catch {
+        // Fallback to Nominatim
+      }
+    }
+
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
       const res = await fetch(url, {
@@ -219,7 +341,7 @@ class MapProviderService {
   }
 
   /**
-   * Fetch authoritative road-following route geometry via OSRM
+   * Fetch authoritative road-following route geometry via Google Directions or OSRM
    */
   public async getRouteGeometry(
     pickup: MapCoordinates,
@@ -229,8 +351,50 @@ class MapProviderService {
       return this.computeSyntheticRoute(pickup, drop);
     }
 
+    // 1. Google Maps Directions Service
+    if (this.activeProvider === 'GOOGLE' && window.google?.maps?.DirectionsService) {
+      try {
+        const directionsService = new window.google.maps.DirectionsService();
+        const directionsResult = await new Promise<any>((resolve, reject) => {
+          directionsService.route(
+            {
+              origin: { lat: pickup.latitude, lng: pickup.longitude },
+              destination: { lat: drop.latitude, lng: drop.longitude },
+              travelMode: window.google.maps.TravelMode.DRIVING
+            },
+            (result: any, status: any) => {
+              if (status === window.google.maps.DirectionsStatus.OK && result) {
+                resolve(result);
+              } else {
+                reject(status);
+              }
+            }
+          );
+        });
+
+        if (directionsResult?.routes?.[0]?.overview_path) {
+          const route = directionsResult.routes[0];
+          const leg = route.legs?.[0];
+          const distanceKm = leg?.distance?.value ? Math.round((leg.distance.value / 1000) * 10) / 10 : 5.0;
+          const durationMinutes = leg?.duration?.value ? Math.max(1, Math.round(leg.duration.value / 60)) : 15;
+          const coords: [number, number][] = route.overview_path.map((p: any) => [p.lat(), p.lng()]);
+
+          return {
+            coordinates: coords,
+            distanceKm,
+            durationMinutes,
+            provider: 'Google Maps Directions API',
+            isRealRoadGeometry: true,
+            summary: leg?.summary || route.summary || 'Google Driving Route'
+          };
+        }
+      } catch (err) {
+        console.warn('Google Directions route failed, falling back to OSRM', err);
+      }
+    }
+
+    // 2. OpenStreetMap / OSRM Driving Directions
     try {
-      // OSRM driving directions: format {lng},{lat};{lng},{lat}
       const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${pickup.longitude},${pickup.latitude};${drop.longitude},${drop.latitude}?overview=full&geometries=geojson`;
       const res = await fetch(osrmUrl);
 

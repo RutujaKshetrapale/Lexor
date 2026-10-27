@@ -130,13 +130,7 @@ export const DriverActiveTripView: React.FC<DriverActiveTripViewProps> = ({
       setTripStatus('IN_PROGRESS');
       setShowOtpModal(false);
     } catch (err: any) {
-      // In automated/offline demo tests: verify if matches authoritative booking OTP
-      if (booking.otp && otpInput === booking.otp) {
-        setTripStatus('IN_PROGRESS');
-        setShowOtpModal(false);
-      } else {
-        setOtpError(err?.message || 'Invalid OTP code. Please ask the passenger for their start code.');
-      }
+      setOtpError(err?.message || 'Invalid OTP code. Please request the 4-digit code from the rider.');
     } finally {
       setIsActionLoading(false);
     }
