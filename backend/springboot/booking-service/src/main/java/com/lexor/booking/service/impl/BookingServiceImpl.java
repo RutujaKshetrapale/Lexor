@@ -755,7 +755,29 @@ public class BookingServiceImpl implements BookingService {
                     .payload(payload)
                     .build());
         } catch (Exception ex) {
-            logger.error("Failed to publish booking event {}: {}", eventType, ex.getMessage());
+            logger.error("Failed to publish booking domain event {}: {}", eventType, ex.getMessage());
+        }
+
+        try {
+            String recipientUuid = null;
+            String role = "RIDER";
+            if (payload != null && payload.containsKey("riderUuid")) {
+                recipientUuid = String.valueOf(payload.get("riderUuid"));
+            } else if (payload != null && payload.containsKey("driverUuid")) {
+                recipientUuid = String.valueOf(payload.get("driverUuid"));
+                role = "DRIVER";
+            }
+            notificationClient.dispatchBusinessEvent(
+                    eventType,
+                    UUID.randomUUID().toString(),
+                    recipientUuid,
+                    role,
+                    "BOOKING",
+                    bookingUuid,
+                    payload
+            );
+        } catch (Exception ex) {
+            logger.warn("Non-fatal: notification forward failed for event {}: {}", eventType, ex.getMessage());
         }
     }
 

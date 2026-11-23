@@ -46,4 +46,32 @@ public class NotificationClient {
             return false;
         }
     }
+
+    public boolean dispatchBusinessEvent(String eventType, String eventId, String recipientUuid, String recipientRole, String relatedEntityType, String relatedEntityUuid, Map<String, Object> metadata) {
+        String url = bookingProperties.getNotificationServiceUrl() + "/api/v1/internal/notifications/events";
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            if (StringUtils.hasText(bookingProperties.getInternalApiKey())) {
+                headers.set("X-Internal-Service-Key", bookingProperties.getInternalApiKey());
+            }
+
+            Map<String, Object> body = new java.util.HashMap<>();
+            body.put("eventId", eventId != null ? eventId : java.util.UUID.randomUUID().toString());
+            body.put("eventType", eventType);
+            body.put("sourceService", "booking-service");
+            body.put("recipientUuid", recipientUuid != null ? recipientUuid : "SYSTEM_BROADCAST");
+            body.put("recipientRole", recipientRole != null ? recipientRole : "RIDER");
+            body.put("relatedEntityType", relatedEntityType != null ? relatedEntityType : "BOOKING");
+            body.put("relatedEntityUuid", relatedEntityUuid);
+            body.put("metadata", metadata != null ? metadata : Map.of());
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception ex) {
+            log.warn("Non-fatal: failed to forward business event {} to notification-service: {}", eventType, ex.getMessage());
+            return false;
+        }
+    }
 }

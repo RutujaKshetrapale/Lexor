@@ -240,6 +240,7 @@ public class PaymentServiceImpl implements IPaymentService {
     @Transactional(readOnly = true)
     public PaymentReceiptResponse getPaymentReceipt(UserPrincipal principal, String paymentUuid, String authHeader) {
         PaymentEntity payment = paymentRepository.findByPaymentUuid(paymentUuid)
+                .or(() -> paymentRepository.findByBookingUuid(paymentUuid))
                 .orElseThrow(() -> new ResourceNotFoundException("Payment with UUID " + paymentUuid + " not found"));
 
         if (!payment.getRiderUuid().equalsIgnoreCase(principal.getUuid())) {
@@ -419,7 +420,27 @@ public class PaymentServiceImpl implements IPaymentService {
     @Transactional
     public PaymentResponse confirmCashCollection(UserPrincipal driverPrincipal, String paymentUuid, CashCollectionRequest request) {
         PaymentEntity payment = paymentRepository.findByPaymentUuid(paymentUuid)
-                .orElseThrow(() -> new ResourceNotFoundException("Payment with UUID " + paymentUuid + " not found"));
+                .or(() -> paymentRepository.findByBookingUuid(paymentUuid))
+                .orElseGet(() -> {
+                    Optional<BookingDetailDto> bookingOpt = bookingClient.getBookingDetails(paymentUuid, null);
+                    if (bookingOpt.isPresent()) {
+                        BookingDetailDto b = bookingOpt.get();
+                        BigDecimal fare = b.getTotalFare() != null ? b.getTotalFare() : BigDecimal.valueOf(250.00);
+                        return paymentRepository.save(PaymentEntity.builder()
+                                .paymentUuid(UUID.randomUUID().toString())
+                                .bookingUuid(b.getBookingUuid())
+                                .riderUuid(b.getRiderUuid())
+                                .driverUuid(driverPrincipal.getUuid())
+                                .amount(fare)
+                                .amountPaise(fare.multiply(BigDecimal.valueOf(100)).longValue())
+                                .currency(b.getCurrency() != null ? b.getCurrency() : "INR")
+                                .paymentMethod(PaymentMethod.CASH)
+                                .status(PaymentStatus.PENDING)
+                                .provider("CASH")
+                                .build());
+                    }
+                    throw new ResourceNotFoundException("Payment or Booking not found with identifier: " + paymentUuid);
+                });
 
         if (payment.getPaymentMethod() != PaymentMethod.CASH) {
             throw new BadRequestException("Payment method is not CASH. Driver cash collection is only valid for CASH rides.");

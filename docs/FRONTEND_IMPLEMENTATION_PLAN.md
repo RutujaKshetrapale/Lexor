@@ -185,4 +185,36 @@ graph TD
   - .NET `booking-service`: 50/50 passing tests (`dotnet test`).
   - .NET `api-gateway`: Clean build with 0 warnings, 0 errors.
 
+---
+
+### Milestone 9 — Phase 18 End-to-End Ride Lifecycle Integration
+- **Goal**: Seamlessly unify the complete lifecycle across Rider, Driver, and Admin portals, eliminating fake driver fallbacks in production, enforcing strict state machine transitions, integrating real-time domain events, supporting cash and digital payment reconciliation, and verifying cross-stack parity.
+- **Completed Components**:
+  1. **Production Dispatch & Zero Fabricated Fallbacks**:
+     - Removed silent generation of fake driver "Vikram Rathore" on booking error.
+     - Added dedicated searching state (`isSearchingDriver`) and clear "No Drivers Available" resolution modal with options to retry or change ride category.
+     - Enforced driver verification requirement on duty toggle (`PATCH /drivers/me/availability`); unverified drivers remain offline.
+  2. **Atomic Driver Offer Acceptance & Offer Polling**:
+     - Driver dashboard polls `/drivers/me/bookings` alongside SSE stream to catch incoming offers immediately.
+     - Atomic concurrency lock prevents competing acceptances on the same trip.
+  3. **Strict Trip State Machine & OTP Verification**:
+     - Enforced valid transition sequence: `CONFIRMED` -> `ACCEPTED` -> `ARRIVED` -> `IN_PROGRESS` (with BCrypt OTP verification) -> `COMPLETED`.
+     - In-progress cancellation guard (`409 Conflict`), terminal state immutability, and 3-attempt OTP lockout guard.
+  4. **Payment Ergonomics & Cash Reconciliation**:
+     - Enhanced `PaymentService` in both Spring Boot and .NET to look up payment and generate receipts by either `paymentUuid` or `bookingUuid`.
+     - Driver cash collection confirms payment and generates double-entry ledger entries.
+     - Authoritative receipt modal with itemized fare breakdown and two-sided rating integration.
+  5. **Admin Operations Inspection**:
+     - Standardized currency formatting to INR (`₹`).
+     - Real-time fleet live ops dispatch inspection, emergency cancellation override, and audit trail records.
+- **Verification Evidence**:
+  - Frontend: 33/33 passing tests across 6 suites (`npm test`).
+  - .NET booking-service: 50/50 passing tests (`dotnet test`).
+  - .NET payment-service: 13/13 passing tests (`dotnet test`).
+  - .NET driver-matching-service: 26/26 passing tests (`dotnet test`).
+  - Spring Boot booking-service: 48/48 passing tests (`mvn test`).
+  - Spring Boot payment-service: 13/13 passing tests (`mvn test`).
+  - Spring Boot driver-matching-service: 28/28 passing tests (`mvn test`).
+
+
 

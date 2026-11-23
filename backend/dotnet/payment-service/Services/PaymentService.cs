@@ -200,7 +200,7 @@ public class PaymentService : IPaymentService
     public async Task<PaymentReceiptResponse> GetPaymentReceiptAsync(ClaimsPrincipal user, string paymentUuid, string? authHeader)
     {
         var riderUuid = GetUserUuid(user);
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.PaymentUuid == paymentUuid);
+        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.PaymentUuid == paymentUuid || p.BookingUuid == paymentUuid);
         if (payment == null)
         {
             throw new ResourceNotFoundException($"Payment with UUID {paymentUuid} not found");
@@ -399,10 +399,35 @@ public class PaymentService : IPaymentService
     public async Task<PaymentResponse> ConfirmCashCollectionAsync(ClaimsPrincipal driverUser, string paymentUuid, CashCollectionRequest? request)
     {
         var driverUuid = GetUserUuid(driverUser);
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.PaymentUuid == paymentUuid);
+        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.PaymentUuid == paymentUuid || p.BookingUuid == paymentUuid);
         if (payment == null)
         {
-            throw new ResourceNotFoundException($"Payment with UUID {paymentUuid} not found");
+            var booking = await _bookingClient.GetBookingDetailsAsync(paymentUuid);
+            if (booking != null)
+            {
+                decimal fare = booking.TotalFare > 0 ? booking.TotalFare : 250m;
+                payment = new Payment
+                {
+                    PaymentUuid = Guid.NewGuid().ToString(),
+                    BookingUuid = booking.BookingUuid,
+                    RiderUuid = booking.RiderUuid,
+                    DriverUuid = driverUuid,
+                    Amount = fare,
+                    AmountPaise = (long)Math.Round(fare * 100, MidpointRounding.AwayFromZero),
+                    Currency = booking.Currency ?? "INR",
+                    PaymentMethod = PaymentMethod.CASH,
+                    Status = PaymentStatus.PENDING,
+                    Provider = "CASH",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _dbContext.Payments.Add(payment);
+                await _dbContext.SaveChangesAsync();
+            }
+            else
+            {
+                throw new ResourceNotFoundException($"Payment or Booking with UUID {paymentUuid} not found");
+            }
         }
 
         if (payment.PaymentMethod != PaymentMethod.CASH)
